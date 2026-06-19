@@ -3,7 +3,7 @@
 A skim-friendly overview of what's built so far and how to test it.
 For full spec see `CLAUDE.md`. This file = the "get the idea" version.
 
-> **Status:** Step 1 ✅ Master Data · Step 2 ✅ Preferences · Step 3 ✅ Angular onboarding · Step 4 ✅ FetchJobs worker · Step 5 ✅ Jobs API + UI · rest pending.
+> **Status:** Step 1 ✅ Master Data · Step 2 ✅ Preferences · Step 3 ✅ Angular onboarding · Step 4 ✅ FetchJobs worker · Step 5 ✅ Jobs API + UI · Auth ✅ (register/login/JWT) · rest pending.
 > **Stack:** .NET 9 Web API · PostgreSQL 15 · Redis 7 · EF Core 9 · Angular 21 (Tailwind 3 + Material)
 
 ---
@@ -279,7 +279,35 @@ Cache check: 1st call → SQL in API logs; 2nd identical call → no SQL (served
 
 ---
 
-## 11. What's next (from CLAUDE.md build order)
+## 11. Auth (register / login / JWT)
 
-**AuthController** (register/login/JWT — unblocks onboarding + issues the Admin token) ·
+Unblocks the onboarding flow and issues real tokens (incl. the Admin token for `/api/admin/*`).
+
+### Endpoints (`api/auth`)
+| Method | Route | Auth | Does |
+|---|---|---|---|
+| POST | `/register` | public | create user + empty profile + welcome mail row → returns tokens |
+| POST | `/login` | public | verify BCrypt password → tokens (same error for bad email *or* password) |
+| POST | `/refresh` | public | rotate: revoke old refresh token, issue a new pair |
+| POST | `/revoke` | bearer | revoke refresh token + blacklist this access token's JTI in Redis |
+| GET | `/me` | bearer | current user from JWT claims |
+
+### How tokens work
+- **Access token** = short-lived JWT (15 min) with claims `nameid` (user id), `role`, `email`,
+  `name`, `jti`. Signed HS256 with `Jwt:SecretKey`.
+- **Refresh token** = random 64-byte string stored in `refresh_tokens` (7-day expiry). Rotated on
+  every `/refresh` (old one revoked) — so a stolen refresh token has a short useful life.
+- **Revoke / blacklist:** `/revoke` revokes the refresh row *and* puts the access token's `jti` in
+  Redis (`blacklist:jwt:{jti}`). `JwtBlacklistMiddleware` checks every authenticated request and
+  401s revoked tokens — it **fails open** if Redis is down (availability over strict revocation).
+- Password hashing = BCrypt. Wrong email and wrong password return the **same** message.
+
+### Now real, not hand-made tokens
+The Angular register/login buttons work end-to-end. To get an **Admin** token, set a user's
+`role_id = 1` then log in (the JWT carries `role: "Admin"` → `/api/admin/fetch-jobs` works).
+
+---
+
+## 12. What's next (from CLAUDE.md build order)
+
 Step 6 Matching · Step 7 RabbitMQ + mail · Step 8 Docker Compose · Step 9 Deploy · Step 10 CI/CD.

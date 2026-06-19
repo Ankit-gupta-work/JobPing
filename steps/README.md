@@ -13,7 +13,7 @@ For the full spec, see [`../CLAUDE.md`](../CLAUDE.md).
 | 3 | Angular onboarding wired to APIs | ✅ | [step-3-angular-onboarding.md](step-3-angular-onboarding.md) |
 | 4 | FetchJobs background worker | ✅ | [step-4-fetch-jobs-worker.md](step-4-fetch-jobs-worker.md) |
 | 5 | Jobs API + Redis cache + UI | ✅ | [step-5-jobs-api.md](step-5-jobs-api.md) |
-| — | AuthController (register/login/JWT) | ⏳ next | — |
+| — | AuthController (register/login/JWT) | ✅ | [step-auth-controller.md](step-auth-controller.md) |
 | 6 | Matching engine | ⏳ | — |
 | 7 | RabbitMQ + alert + mail workers | ⏳ | — |
 | 8 | Docker Compose (all services) | ⏳ | — |
