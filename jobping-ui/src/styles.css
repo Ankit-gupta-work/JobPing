@@ -1,0 +1,26 @@
+/* Google Fonts: Outfit + DM Mono */
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+/* Angular Material theme (closest to our purple accent) */
+@import '@angular/material/prebuilt-themes/magenta-violet.css';
+
+/* Design system tokens + helpers (all @import must precede other rules) */
+@import './styles/_variables.css';
+@import './styles/_globals.css';
+
+/* Tailwind layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/* Material overrides to fit the dark theme                            */
+/* ------------------------------------------------------------------ */
+.mat-mdc-snack-bar-container.jp-snack-success {
+  --mdc-snackbar-container-color: #0c2a22;
+  --mdc-snackbar-supporting-text-color: #6ee7b7;
+}
+.mat-mdc-snack-bar-container.jp-snack-error {
+  --mdc-snackbar-container-color: #2a0f12;
+  --mdc-snackbar-supporting-text-color: #fca5a5;
+}
