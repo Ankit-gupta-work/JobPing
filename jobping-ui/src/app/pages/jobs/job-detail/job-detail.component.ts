@@ -1,92 +1,132 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Location as NgLocation } from '@angular/common';
-import { NavbarComponent } from '../../../components/navbar/navbar.component';
+import { AppLayoutComponent } from '../../../components/app-layout/app-layout.component';
+import { MatchBadgeComponent } from '../../../components/match-badge/match-badge.component';
+import { LoadingSkeletonComponent } from '../../../components/loading-skeleton/loading-skeleton.component';
+import { EmptyStateComponent } from '../../../components/empty-state/empty-state.component';
+import { IconComponent } from '../../../components/icon/icon.component';
 import { JobService } from '../../../services/job.service';
 import { JobDetail } from '../../../models';
 import { timeAgo } from '../../../utils/time-ago';
 
 @Component({
   selector: 'app-job-detail',
-  imports: [NavbarComponent],
+  imports: [AppLayoutComponent, MatchBadgeComponent, LoadingSkeletonComponent, EmptyStateComponent, IconComponent],
   template: `
-    <app-navbar />
-    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-      <button (click)="goBack()" class="text-sm text-text-secondary hover:text-text-primary transition-colors mb-6">
-        ← Back
+    <app-layout>
+      <button (click)="goBack()" class="btn btn-ghost" style="margin-bottom: 20px; padding-left: 0;">
+        <app-icon name="chevron-left" [size]="14" /> Back to jobs
       </button>
 
       @if (loading()) {
-        <div class="animate-pulse space-y-4">
-          <div class="h-7 w-2/3 bg-bg-elevated rounded"></div>
-          <div class="h-4 w-1/3 bg-bg-elevated rounded"></div>
-          <div class="h-40 bg-bg-surface border border-border-subtle rounded-lg"></div>
-        </div>
+        <app-loading-skeleton type="job-detail" />
       } @else if (!job()) {
-        <div class="text-center py-20">
-          <div class="text-4xl mb-3">🚫</div>
-          <p class="text-text-primary font-semibold">Job not found</p>
-        </div>
+        <app-empty-state title="Job not found" description="It may have been removed or deindexed.">
+          <app-icon icon name="alert-circle" [size]="20" />
+        </app-empty-state>
       } @else {
-        <article class="fade-up">
-          <div class="flex items-start gap-4">
-            <div class="grid place-items-center w-14 h-14 rounded-md bg-accent-muted border border-accent-border text-accent-light font-bold text-lg shrink-0">
-              {{ initials(job()!.company) }}
+        <div class="job-detail-layout">
+          <!-- Main -->
+          <article class="job-detail-main">
+            <div style="display: flex; align-items: flex-start; gap: 14px;">
+              <div class="job-logo" style="width: 48px; height: 48px; font-size: 16px;">
+                {{ initials(job()!.company) }}
+              </div>
+              <div style="min-width: 0;">
+                <h1 style="font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em;">
+                  {{ job()!.title }}
+                </h1>
+                <div class="job-meta" style="margin-top: 4px;">
+                  <span>{{ job()!.company }}</span>
+                  @if (job()!.location || job()!.isRemote) {
+                    <span class="job-meta-dot"></span>
+                    <span>{{ job()!.location || 'Remote' }}</span>
+                  }
+                  <span class="job-meta-dot"></span>
+                  <span class="source-badge">{{ job()!.source }}</span>
+                  <span class="job-meta-dot"></span>
+                  <span>{{ ago(job()!.fetchedAt) }}</span>
+                </div>
+              </div>
             </div>
-            <div class="min-w-0">
-              <h1 class="text-2xl font-bold text-text-primary">{{ job()!.title }}</h1>
-              <p class="text-text-secondary">{{ job()!.company }}</p>
-            </div>
-          </div>
 
-          <div class="flex flex-wrap items-center gap-2 mt-4">
-            <span class="text-xs px-2 py-0.5 rounded-full bg-bg-elevated border border-border-default text-text-secondary">{{ job()!.source }}</span>
-            @if (job()!.isRemote) {
-              <span class="text-xs px-2 py-0.5 rounded-full bg-accent-muted border border-accent-border text-accent-light">Remote</span>
+            @if (job()!.skills.length) {
+              <div class="job-tags" style="margin-top: 16px;">
+                @for (skill of job()!.skills; track skill) {
+                  <span class="tag accent">{{ skill }}</span>
+                }
+              </div>
             }
-            @if (job()!.jobType) {
-              <span class="text-xs px-2 py-0.5 rounded-full bg-bg-elevated border border-border-default text-text-secondary">{{ job()!.jobType }}</span>
-            }
-            @if (job()!.location) {
-              <span class="text-xs text-text-muted">📍 {{ job()!.location }}</span>
-            }
-            <span class="text-xs text-text-muted">• {{ ago(job()!.fetchedAt) }}</span>
-          </div>
 
-          @if (job()!.skills.length) {
-            <div class="flex flex-wrap gap-1.5 mt-4">
-              @for (skill of job()!.skills; track skill) {
-                <span class="chip chip-active">{{ skill }}</span>
+            <hr style="border: none; border-top: 1px solid var(--border-subtle); margin: 24px 0;" />
+
+            @if (job()!.description) {
+              <div class="job-description" style="color: var(--text-secondary); line-height: 1.7; font-size: 13px;" [innerHTML]="job()!.description"></div>
+            } @else {
+              <p style="color: var(--text-muted); font-size: 13px;">No description provided by the source.</p>
+            }
+          </article>
+
+          <!-- Sticky sidebar -->
+          <aside class="job-detail-sidebar">
+            <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
+              @if (job()!.matchPercentage != null) {
+                <div>
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <span style="font-size: 13px; color: var(--text-secondary);">Your match</span>
+                    <app-match-badge [score]="job()!.matchPercentage!" />
+                  </div>
+                  <div class="match-bar"><div class="match-bar-fill" [style.width.%]="job()!.matchPercentage"></div></div>
+                </div>
               }
+
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button (click)="apply()" [disabled]="!job()!.sourceUrl" class="btn btn-primary apply-btn" style="justify-content: center;">
+                  Apply Now <app-icon name="external-link" [size]="14" />
+                </button>
+                <button
+                  (click)="toggleSave()"
+                  class="btn"
+                  [class.btn-primary]="job()!.isSaved"
+                  [class.btn-secondary]="!job()!.isSaved"
+                  style="justify-content: center;"
+                >
+                  <app-icon name="heart" [size]="14" /> {{ job()!.isSaved ? 'Saved' : 'Save Job' }}
+                </button>
+              </div>
+
+              <div style="padding-top: 4px;">
+                @if (job()!.minSalary || job()!.maxSalary) {
+                  <div class="settings-row">
+                    <span class="settings-key">Salary</span>
+                    <span class="settings-val">{{ salaryRange() }}</span>
+                  </div>
+                }
+                @if (job()!.jobType) {
+                  <div class="settings-row">
+                    <span class="settings-key">Type</span>
+                    <span class="settings-val">{{ job()!.jobType }}</span>
+                  </div>
+                }
+                <div class="settings-row">
+                  <span class="settings-key">Remote</span>
+                  <span class="settings-val">{{ job()!.isRemote ? 'Yes' : 'No' }}</span>
+                </div>
+                <div class="settings-row">
+                  <span class="settings-key">Source</span>
+                  <span class="settings-val">{{ job()!.source }}</span>
+                </div>
+              </div>
             </div>
-          }
-
-          <div class="flex gap-3 mt-6">
-            <button (click)="apply()" [disabled]="!job()!.sourceUrl"
-              class="px-5 py-2.5 rounded-md bg-accent text-white font-medium hover:bg-accent-hover transition-colors shadow-glow disabled:opacity-50 disabled:cursor-not-allowed">
-              Apply Now ↗
-            </button>
-            <button (click)="toggleSave()"
-              class="px-5 py-2.5 rounded-md border transition-colors"
-              [class.border-accent-border]="job()!.isSaved"
-              [class.text-accent-light]="job()!.isSaved"
-              [class.bg-accent-muted]="job()!.isSaved"
-              [class.border-border-default]="!job()!.isSaved"
-              [class.text-text-primary]="!job()!.isSaved">
-              {{ job()!.isSaved ? '★ Saved' : '☆ Save Job' }}
-            </button>
-          </div>
-
-          <hr class="border-border-subtle my-8" />
-
-          <div class="job-description text-text-secondary leading-relaxed" [innerHTML]="job()!.description"></div>
-        </article>
+          </aside>
+        </div>
       }
-    </main>
+    </app-layout>
   `,
   styles: [`
     .job-description :is(h1,h2,h3) { color: var(--text-primary); font-weight: 600; margin: 1rem 0 .5rem; }
-    .job-description a { color: var(--accent-light); text-decoration: underline; }
+    .job-description a { color: var(--accent); text-decoration: underline; }
     .job-description ul { list-style: disc; padding-left: 1.25rem; margin: .5rem 0; }
     .job-description p { margin: .5rem 0; }
   `],
@@ -123,10 +163,18 @@ export class JobDetailComponent implements OnInit {
     const job = this.job();
     if (!job) return;
     const prev = job.isSaved;
-    this.job.set({ ...job, isSaved: !prev }); // optimistic
+    this.job.set({ ...job, isSaved: !prev });
     this.jobService.saveJob(job.id).subscribe({
       error: () => this.job.set({ ...job, isSaved: prev }),
     });
+  }
+
+  salaryRange(): string {
+    const job = this.job()!;
+    if (job.minSalary && job.maxSalary) return `₹${job.minSalary}–${job.maxSalary} LPA`;
+    if (job.minSalary) return `₹${job.minSalary}+ LPA`;
+    if (job.maxSalary) return `Up to ₹${job.maxSalary} LPA`;
+    return '—';
   }
 
   initials(company: string): string {

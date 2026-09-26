@@ -24,13 +24,13 @@ module.exports = {
         error: '#f87171',
       },
       fontFamily: {
-        base: ['Outfit', 'sans-serif'],
-        mono: ['"DM Mono"', 'monospace'],
+        base: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
       },
       borderRadius: {
         sm: '6px',
-        md: '10px',
-        lg: '14px',
+        md: '8px',
+        lg: '12px',
       },
       boxShadow: {
         glow: '0 0 30px rgba(124,58,237,0.3)',

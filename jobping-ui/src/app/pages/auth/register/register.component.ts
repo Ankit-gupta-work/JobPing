@@ -8,196 +8,217 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../../services/auth.service';
 import { MasterDataService } from '../../../services/master-data.service';
 import { PreferenceService } from '../../../services/preference.service';
+import { ThemeService } from '../../../services/theme.service';
+import { IconComponent } from '../../../components/icon/icon.component';
 import { Experience, Location, Skill } from '../../../models';
 
 @Component({
   selector: 'app-register',
-  imports: [ReactiveFormsModule, RouterLink, MatProgressSpinnerModule, MatTooltipModule],
+  imports: [ReactiveFormsModule, RouterLink, MatProgressSpinnerModule, MatTooltipModule, IconComponent],
   template: `
-    <div class="relative min-h-screen bg-bg-base overflow-hidden">
-      <div class="glow-orb w-[420px] h-[420px] -top-24 left-1/3"></div>
+    <div style="min-height: 100vh; background: var(--bg-page); position: relative;">
+      <button
+        class="icon-btn"
+        (click)="theme.toggle()"
+        style="position: absolute; top: 16px; right: 16px;"
+        [title]="theme.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+      >
+        <app-icon [name]="theme.theme() === 'dark' ? 'sun' : 'moon'" [size]="16" />
+      </button>
 
-      <div class="relative z-10 max-w-2xl mx-auto px-6 py-10">
-        <!-- header + stepper -->
-        <div class="flex items-center gap-2 mb-8">
-          <span class="grid place-items-center w-8 h-8 rounded-md bg-accent-muted border border-accent-border">
-            <span class="text-accent-light font-mono text-sm">JP</span>
+      <div style="max-width: 560px; margin: 0 auto; padding: 40px 24px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 32px;">
+          <span class="topnav-logo-mark">
+            <span style="color: white; font-family: var(--font-mono); font-size: 11px; font-weight: 700;">JP</span>
           </span>
-          <span class="text-gradient font-bold text-lg">JobPing</span>
+          <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">JobPing</span>
         </div>
 
-        <div class="flex items-center gap-2 mb-10">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px;">
           @for (s of steps; track s; let i = $index) {
-            <div class="flex-1 h-1.5 rounded-full transition-colors"
-                 [class.bg-accent]="i <= step()"
-                 [class.bg-bg-elevated]="i > step()"></div>
+            <div
+              style="flex: 1; height: 4px; border-radius: 99px; transition: background 150ms;"
+              [style.background]="i <= step() ? 'var(--accent)' : 'var(--bg-elevated)'"
+            ></div>
           }
         </div>
 
-        <p class="font-mono text-sm text-accent-light mb-1">
+        <p style="font-family: var(--font-mono); font-size: 12px; color: var(--accent); margin-bottom: 4px;">
           Step {{ step() + 1 }} / 4 — {{ steps[step()] }}
         </p>
 
         <!-- ================= STEP 0: ACCOUNT ================= -->
         @if (step() === 0) {
-          <div class="fade-up">
-            <h2 class="text-2xl font-bold text-text-primary mb-6">Create your account</h2>
+          <div>
+            <h2 style="font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 8px 0 20px;">Create your account</h2>
 
-            <div class="grid grid-cols-2 gap-3 mb-6">
-              <button type="button" disabled matTooltip="Coming soon"
-                class="py-2.5 rounded-md border border-border-default text-text-muted text-sm cursor-not-allowed opacity-60">Google</button>
-              <button type="button" disabled matTooltip="Coming soon"
-                class="py-2.5 rounded-md border border-border-default text-text-muted text-sm cursor-not-allowed opacity-60">GitHub</button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+              <button type="button" disabled matTooltip="Coming soon" class="btn btn-secondary" style="justify-content: center;">Google</button>
+              <button type="button" disabled matTooltip="Coming soon" class="btn btn-secondary" style="justify-content: center;">GitHub</button>
             </div>
 
-            <form [formGroup]="accountForm" (ngSubmit)="createAccount()" class="space-y-4">
+            <form [formGroup]="accountForm" (ngSubmit)="createAccount()" style="display: flex; flex-direction: column; gap: 14px;">
               <div>
-                <label class="block text-sm text-text-secondary mb-1.5">Full name</label>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Full name</label>
                 <input class="jp-input" formControlName="fullName" placeholder="Ada Lovelace" />
               </div>
               <div>
-                <label class="block text-sm text-text-secondary mb-1.5">Username</label>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Username</label>
                 <input class="jp-input" formControlName="username" placeholder="ada" />
               </div>
               <div>
-                <label class="block text-sm text-text-secondary mb-1.5">Email</label>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Email</label>
                 <input class="jp-input" type="email" formControlName="email" placeholder="ada@example.com" />
               </div>
               <div>
-                <label class="block text-sm text-text-secondary mb-1.5">Password</label>
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Password</label>
                 <input class="jp-input" type="password" formControlName="password" placeholder="At least 8 characters" />
                 @if (accountForm.controls.password.touched && accountForm.controls.password.invalid) {
-                  <p class="text-xs text-error mt-1">Password must be at least 8 characters.</p>
+                  <p style="font-size: 11px; color: var(--error); margin-top: 4px;">Password must be at least 8 characters.</p>
                 }
               </div>
 
-              <button type="submit" [disabled]="loading() || accountForm.invalid"
-                class="w-full py-3 rounded-md bg-accent text-white font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                @if (loading()) { <mat-progress-spinner diameter="20" mode="indeterminate" /> } @else { Create account }
+              <button
+                type="submit"
+                [disabled]="loading() || accountForm.invalid"
+                class="btn btn-primary"
+                style="justify-content: center; padding: 10px 14px; margin-top: 4px;"
+              >
+                @if (loading()) { <mat-progress-spinner diameter="16" mode="indeterminate" /> } @else { Create account }
               </button>
             </form>
 
-            <p class="text-sm text-text-secondary mt-6 text-center">
+            <p style="font-size: 13px; color: var(--text-secondary); margin-top: 20px; text-align: center;">
               Already have an account?
-              <a routerLink="/auth/login" class="text-accent-light hover:underline">Sign in</a>
+              <a routerLink="/auth/login" style="color: var(--accent); text-decoration: none;">Sign in</a>
             </p>
           </div>
         }
 
         <!-- ================= STEP 1: SKILLS ================= -->
         @if (step() === 1) {
-          <div class="fade-up">
-            <h2 class="text-2xl font-bold text-text-primary mb-2">Pick your skills</h2>
-            <p class="text-text-secondary mb-6">We match jobs against these.</p>
+          <div>
+            <h2 style="font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 8px 0 2px;">Pick your skills</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">We match jobs against these.</p>
 
             @if (loadingSkills()) {
-              <div class="flex justify-center py-10"><mat-progress-spinner diameter="36" mode="indeterminate" /></div>
+              <div style="display: flex; justify-content: center; padding: 40px 0;"><mat-progress-spinner diameter="32" mode="indeterminate" /></div>
             } @else {
-              <div class="flex flex-wrap gap-2.5">
+              <div class="filter-chips">
                 @for (skill of skills(); track skill.id) {
-                  <button type="button" (click)="toggleSkill(skill.id)"
-                    class="chip" [class.chip-active]="selectedSkills().includes(skill.id)">
+                  <button type="button" (click)="toggleSkill(skill.id)" class="filter-chip" [class.active]="selectedSkills().includes(skill.id)">
                     {{ skill.name }}
                   </button>
                 }
               </div>
-              <p class="text-xs text-text-muted mt-4">{{ selectedSkills().length }} selected</p>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 14px;">{{ selectedSkills().length }} selected</p>
             }
 
-            <div class="flex justify-between mt-10">
-              <button type="button" (click)="back()" class="px-5 py-2.5 rounded-md border border-border-default text-text-primary hover:border-border-strong transition-colors">Back</button>
-              <button type="button" (click)="next()" [disabled]="selectedSkills().length === 0"
-                class="px-6 py-2.5 rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Continue</button>
+            <div style="display: flex; justify-content: space-between; margin-top: 32px;">
+              <button type="button" (click)="back()" class="btn btn-secondary">Back</button>
+              <button type="button" (click)="next()" [disabled]="selectedSkills().length === 0" class="btn btn-primary">Continue</button>
             </div>
           </div>
         }
 
         <!-- ================= STEP 2: PREFERENCES ================= -->
         @if (step() === 2) {
-          <div class="fade-up">
-            <h2 class="text-2xl font-bold text-text-primary mb-6">Your preferences</h2>
+          <div>
+            <h2 style="font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 8px 0 20px;">Your preferences</h2>
 
             @if (loadingMeta()) {
-              <div class="flex justify-center py-10"><mat-progress-spinner diameter="36" mode="indeterminate" /></div>
+              <div style="display: flex; justify-content: center; padding: 40px 0;"><mat-progress-spinner diameter="32" mode="indeterminate" /></div>
             } @else {
-              <div class="space-y-7" [formGroup]="prefForm">
+              <div style="display: flex; flex-direction: column; gap: 24px;" [formGroup]="prefForm">
                 <div>
-                  <label class="block text-sm text-text-secondary mb-2">Preferred locations</label>
-                  <div class="flex flex-wrap gap-2.5">
+                  <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Preferred locations</label>
+                  <div class="filter-chips">
                     @for (loc of locations(); track loc.id) {
-                      <button type="button" (click)="toggleLocation(loc.id)"
-                        class="chip" [class.chip-active]="selectedLocations().includes(loc.id)">{{ loc.name }}</button>
+                      <button type="button" (click)="toggleLocation(loc.id)" class="filter-chip" [class.active]="selectedLocations().includes(loc.id)">
+                        {{ loc.name }}
+                      </button>
                     }
                   </div>
                 </div>
 
                 <div>
-                  <label class="block text-sm text-text-secondary mb-2">Experience</label>
-                  <div class="flex flex-wrap gap-2.5">
+                  <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Experience</label>
+                  <div class="filter-chips">
                     @for (exp of experiences(); track exp.id) {
-                      <button type="button" (click)="selectedExperienceId.set(exp.id)"
-                        class="chip" [class.chip-active]="selectedExperienceId() === exp.id">{{ exp.name }}</button>
+                      <button type="button" (click)="selectedExperienceId.set(exp.id)" class="filter-chip" [class.active]="selectedExperienceId() === exp.id">
+                        {{ exp.name }}
+                      </button>
                     }
                   </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                   <div>
-                    <label class="block text-sm text-text-secondary mb-1.5">Min salary</label>
+                    <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Min salary</label>
                     <input class="jp-input" type="number" formControlName="minSalary" placeholder="0" />
                   </div>
                   <div>
-                    <label class="block text-sm text-text-secondary mb-1.5">Max salary</label>
+                    <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Max salary</label>
                     <input class="jp-input" type="number" formControlName="maxSalary" placeholder="200000" />
                   </div>
                 </div>
 
                 <div>
-                  <label class="block text-sm text-text-secondary mb-2">Minimum match %</label>
-                  <div class="flex flex-wrap gap-2.5">
+                  <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">Minimum match %</label>
+                  <div class="filter-chips">
                     @for (pct of matchOptions; track pct) {
-                      <button type="button" (click)="prefForm.controls.minMatchPercentage.setValue(pct)"
-                        class="chip" [class.chip-active]="prefForm.controls.minMatchPercentage.value === pct">{{ pct }}%</button>
+                      <button
+                        type="button"
+                        (click)="prefForm.controls.minMatchPercentage.setValue(pct)"
+                        class="filter-chip"
+                        [class.active]="prefForm.controls.minMatchPercentage.value === pct"
+                      >
+                        {{ pct }}%
+                      </button>
                     }
                   </div>
                 </div>
               </div>
             }
 
-            <div class="flex justify-between mt-10">
-              <button type="button" (click)="back()" class="px-5 py-2.5 rounded-md border border-border-default text-text-primary hover:border-border-strong transition-colors">Back</button>
-              <button type="button" (click)="next()" class="px-6 py-2.5 rounded-md bg-accent text-white hover:bg-accent-hover transition-colors">Continue</button>
+            <div style="display: flex; justify-content: space-between; margin-top: 32px;">
+              <button type="button" (click)="back()" class="btn btn-secondary">Back</button>
+              <button type="button" (click)="next()" class="btn btn-primary">Continue</button>
             </div>
           </div>
         }
 
         <!-- ================= STEP 3: NOTIFICATIONS ================= -->
         @if (step() === 3) {
-          <div class="fade-up">
-            <h2 class="text-2xl font-bold text-text-primary mb-2">Alert frequency</h2>
-            <p class="text-text-secondary mb-6">How often should we email you matches?</p>
+          <div>
+            <h2 style="font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 8px 0 2px;">Alert frequency</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">How often should we email you matches?</p>
 
             <div class="grid sm:grid-cols-3 gap-3">
               @for (f of frequencies; track f) {
-                <button type="button" (click)="alertFrequency.set(f)"
-                  class="p-5 rounded-lg border text-left transition-colors"
-                  [class.border-accent-border]="alertFrequency() === f"
-                  [class.bg-accent-muted]="alertFrequency() === f"
-                  [class.border-border-default]="alertFrequency() !== f"
-                  [class.bg-bg-surface]="alertFrequency() !== f">
-                  <span class="block font-semibold"
-                        [class.text-accent-light]="alertFrequency() === f"
-                        [class.text-text-primary]="alertFrequency() !== f">{{ f }}</span>
-                  <span class="block text-xs text-text-muted mt-1">{{ frequencyHint(f) }}</span>
+                <button
+                  type="button"
+                  (click)="alertFrequency.set(f)"
+                  class="card"
+                  style="text-align: left; cursor: pointer; border-width: 1px;"
+                  [style.borderColor]="alertFrequency() === f ? 'var(--accent-border)' : 'var(--border-default)'"
+                  [style.background]="alertFrequency() === f ? 'var(--accent-soft)' : 'var(--bg-surface)'"
+                >
+                  <span
+                    style="display: block; font-weight: 600; font-size: 13px;"
+                    [style.color]="alertFrequency() === f ? 'var(--accent-text)' : 'var(--text-primary)'"
+                  >
+                    {{ f }}
+                  </span>
+                  <span style="display: block; font-size: 11px; color: var(--text-muted); margin-top: 4px;">{{ frequencyHint(f) }}</span>
                 </button>
               }
             </div>
 
-            <div class="flex justify-between mt-10">
-              <button type="button" (click)="back()" class="px-5 py-2.5 rounded-md border border-border-default text-text-primary hover:border-border-strong transition-colors">Back</button>
-              <button type="button" (click)="finish()" [disabled]="loading()"
-                class="px-6 py-2.5 rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 flex items-center gap-2">
-                @if (loading()) { <mat-progress-spinner diameter="20" mode="indeterminate" /> } @else { Finish setup }
+            <div style="display: flex; justify-content: space-between; margin-top: 32px;">
+              <button type="button" (click)="back()" class="btn btn-secondary">Back</button>
+              <button type="button" (click)="finish()" [disabled]="loading()" class="btn btn-primary">
+                @if (loading()) { <mat-progress-spinner diameter="16" mode="indeterminate" /> } @else { Finish setup }
               </button>
             </div>
           </div>
@@ -213,6 +234,7 @@ export class RegisterComponent implements OnInit {
   private readonly preferences = inject(PreferenceService);
   private readonly router = inject(Router);
   private readonly snack = inject(MatSnackBar);
+  readonly theme = inject(ThemeService);
 
   readonly steps = ['Account', 'Skills', 'Preferences', 'Notifications'];
   readonly matchOptions = [50, 60, 70, 80, 90];
@@ -257,7 +279,7 @@ export class RegisterComponent implements OnInit {
     this.auth.register(this.accountForm.getRawValue()).subscribe({
       next: () => {
         this.loading.set(false);
-        this.snack.open('Account created 🎉', 'OK', { duration: 2500, panelClass: 'jp-snack-success' });
+        this.snack.open('Account created.', 'OK', { duration: 2500, panelClass: 'jp-snack-success' });
         this.goToSkills();
       },
       error: (err: HttpErrorResponse) => {

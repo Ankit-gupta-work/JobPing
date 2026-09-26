@@ -1,18 +1,17 @@
 import { Component } from '@angular/core';
-import { NavbarComponent } from '../../components/navbar/navbar.component';
+import { AppLayoutComponent } from '../../components/app-layout/app-layout.component';
+import { EmptyStateComponent } from '../../components/empty-state/empty-state.component';
+import { IconComponent } from '../../components/icon/icon.component';
 
 @Component({
   selector: 'app-placeholder',
-  imports: [NavbarComponent],
+  imports: [AppLayoutComponent, EmptyStateComponent, IconComponent],
   template: `
-    <app-navbar />
-    <main class="min-h-[calc(100vh-64px)] flex items-center justify-center px-6">
-      <div class="text-center fade-up">
-        <div class="text-5xl mb-4">🚧</div>
-        <h1 class="text-2xl font-semibold text-text-primary mb-2">Coming soon</h1>
-        <p class="text-text-secondary">This page is built in a later step.</p>
-      </div>
-    </main>
+    <app-layout>
+      <app-empty-state title="Coming soon" description="This page is built in a later step.">
+        <app-icon icon name="settings" [size]="20" />
+      </app-empty-state>
+    </app-layout>
   `,
 })
 export class PlaceholderComponent {}

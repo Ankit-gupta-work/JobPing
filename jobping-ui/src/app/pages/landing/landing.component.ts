@@ -1,71 +1,79 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ThemeService } from '../../services/theme.service';
+import { IconComponent } from '../../components/icon/icon.component';
 
 @Component({
   selector: 'app-landing',
-  imports: [RouterLink],
+  imports: [RouterLink, IconComponent],
   template: `
-    <div class="relative min-h-screen overflow-hidden bg-bg-base">
-      <!-- glow orbs -->
-      <div class="glow-orb w-[420px] h-[420px] -top-20 -left-10"></div>
-      <div class="glow-orb w-[360px] h-[360px] top-40 right-0 opacity-30"></div>
-
-      <!-- top bar -->
-      <header class="relative z-10 max-w-7xl mx-auto h-16 px-6 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="grid place-items-center w-8 h-8 rounded-md bg-accent-muted border border-accent-border">
-            <span class="text-accent-light font-mono text-sm">JP</span>
-          </span>
-          <span class="text-gradient font-bold text-lg">JobPing</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <a routerLink="/auth/login" class="px-4 py-2 rounded-md text-sm text-text-secondary hover:text-text-primary transition-colors">Sign in</a>
-          <a routerLink="/auth/register" class="px-4 py-2 rounded-md text-sm bg-accent text-white hover:bg-accent-hover transition-colors">Get started</a>
+    <div style="min-height: 100vh; background: var(--bg-page);">
+      <header style="height: var(--nav-height); border-bottom: 1px solid var(--border-default);">
+        <div style="max-width: 1100px; margin: 0 auto; height: 100%; padding: 0 24px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="topnav-logo-mark">
+              <span style="color: white; font-family: var(--font-mono); font-size: 11px; font-weight: 700;">JP</span>
+            </span>
+            <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">JobPing</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="icon-btn" (click)="theme.toggle()" [title]="theme.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+              <app-icon [name]="theme.theme() === 'dark' ? 'sun' : 'moon'" [size]="16" />
+            </button>
+            <a routerLink="/auth/login" class="btn btn-ghost">Sign in</a>
+            <a routerLink="/auth/register" class="btn btn-primary">Get started</a>
+          </div>
         </div>
       </header>
 
-      <!-- hero -->
-      <main class="relative z-10 max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center pt-16 lg:pt-24">
-        <div class="fade-up">
-          <p class="font-mono text-sm text-accent-light mb-4">// developer job alerts, automated</p>
-          <h1 class="text-4xl sm:text-6xl font-extrabold leading-tight text-text-primary">
-            Get pinged for jobs that <span class="text-gradient">actually match</span> your skills.
-          </h1>
-          <p class="mt-6 text-lg text-text-secondary max-w-xl">
-            JobPing scans fresh remote roles every 2 hours, scores them against your skill profile,
-            and emails you only the strong matches.
-          </p>
-          <div class="mt-8 flex flex-wrap gap-3">
-            <a routerLink="/auth/register" class="px-6 py-3 rounded-md bg-accent text-white font-medium hover:bg-accent-hover transition-colors shadow-glow">
-              Create your profile
-            </a>
-            <a routerLink="/auth/login" class="px-6 py-3 rounded-md border border-border-default text-text-primary hover:border-border-strong transition-colors">
-              I already have an account
-            </a>
+      <main style="max-width: 1100px; margin: 0 auto; padding: 72px 24px;">
+        <div class="grid lg:grid-cols-2 gap-16 items-center">
+          <div>
+            <p style="font-family: var(--font-mono); font-size: 12px; color: var(--accent); margin-bottom: 14px;">
+              // developer job alerts, automated
+            </p>
+            <h1 style="font-size: 44px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary);">
+              Get pinged for jobs that
+              <span style="color: var(--accent);">actually match</span>
+              your skills.
+            </h1>
+            <p style="margin-top: 20px; font-size: 16px; color: var(--text-secondary); max-width: 460px; line-height: 1.6;">
+              JobPing scans fresh remote roles every 2 hours, scores them against your skill profile,
+              and emails you only the strong matches.
+            </p>
+            <div style="margin-top: 32px; display: flex; flex-wrap: wrap; gap: 12px;">
+              <a routerLink="/auth/register" class="btn btn-primary" style="padding: 10px 20px; font-size: 14px;">
+                Create your profile
+              </a>
+              <a routerLink="/auth/login" class="btn btn-secondary" style="padding: 10px 20px; font-size: 14px;">
+                I already have an account
+              </a>
+            </div>
           </div>
-        </div>
 
-        <!-- floating preview cards -->
-        <div class="relative h-[360px] hidden lg:block">
-          <div class="float absolute top-0 left-6 w-72 p-5 rounded-lg bg-bg-surface border border-border-default shadow-glow">
-            <div class="flex items-center justify-between">
-              <span class="text-text-primary font-semibold">Senior .NET Developer</span>
-              <span class="text-accent-light font-mono text-sm">92%</span>
+          <div class="hidden lg:block" style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="card">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 600; color: var(--text-primary); font-size: 14px;">Senior .NET Developer</span>
+                <span class="match-badge high">92%</span>
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Techwave · Remote</p>
+              <div class="match-bar"><div class="match-bar-fill" style="width: 92%"></div></div>
             </div>
-            <p class="text-text-muted text-sm mt-1">Techwave • Remote</p>
-            <div class="match-bar mt-3"><div class="match-bar-fill" style="width:92%"></div></div>
-          </div>
-          <div class="float-delay absolute top-40 right-2 w-72 p-5 rounded-lg bg-bg-surface border border-border-default">
-            <div class="flex items-center justify-between">
-              <span class="text-text-primary font-semibold">Angular Engineer</span>
-              <span class="text-accent-light font-mono text-sm">87%</span>
+            <div class="card" style="margin-left: 32px;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 600; color: var(--text-primary); font-size: 14px;">Angular Engineer</span>
+                <span class="match-badge mid">78%</span>
+              </div>
+              <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Nimbus · Remote</p>
+              <div class="match-bar"><div class="match-bar-fill" style="width: 78%"></div></div>
             </div>
-            <p class="text-text-muted text-sm mt-1">Nimbus • Remote</p>
-            <div class="match-bar mt-3"><div class="match-bar-fill" style="width:87%"></div></div>
           </div>
         </div>
       </main>
     </div>
   `,
 })
-export class LandingComponent {}
+export class LandingComponent {
+  readonly theme = inject(ThemeService);
+}

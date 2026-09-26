@@ -5,99 +5,83 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../../services/auth.service';
+import { ThemeService } from '../../../services/theme.service';
+import { IconComponent } from '../../../components/icon/icon.component';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, RouterLink, MatProgressSpinnerModule, MatTooltipModule],
+  imports: [ReactiveFormsModule, RouterLink, MatProgressSpinnerModule, MatTooltipModule, IconComponent],
   template: `
-    <div class="min-h-screen grid lg:grid-cols-2 bg-bg-base">
-      <!-- Left panel -->
-      <div class="relative hidden lg:flex flex-col justify-center px-16 overflow-hidden border-r border-border-subtle">
-        <div class="glow-orb w-[460px] h-[460px] -top-10 -left-20"></div>
-        <div class="relative z-10 max-w-md">
-          <p class="font-mono text-sm text-accent-light mb-4">// welcome back</p>
-          <h1 class="text-4xl font-extrabold text-text-primary leading-tight">
-            Your next role is <span class="text-gradient">already waiting</span>.
-          </h1>
-          <p class="mt-5 text-text-secondary">
-            Sign in to see fresh matches scored against your skills.
-          </p>
+    <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg-page); position: relative;">
+      <button
+        class="icon-btn"
+        (click)="theme.toggle()"
+        style="position: absolute; top: 16px; right: 16px;"
+        [title]="theme.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+      >
+        <app-icon [name]="theme.theme() === 'dark' ? 'sun' : 'moon'" [size]="16" />
+      </button>
 
-          <div class="float mt-12 w-80 p-5 rounded-lg bg-bg-surface border border-border-default shadow-glow">
-            <div class="flex items-center justify-between">
-              <span class="text-text-primary font-semibold">Backend Engineer</span>
-              <span class="text-accent-light font-mono text-sm">90%</span>
-            </div>
-            <p class="text-text-muted text-sm mt-1">Orbit Labs • Remote</p>
-            <div class="match-bar mt-3"><div class="match-bar-fill" style="width:90%"></div></div>
-          </div>
+      <div style="width: 100%; max-width: 380px;">
+        <div style="display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 24px;">
+          <span class="topnav-logo-mark">
+            <span style="color: white; font-family: var(--font-mono); font-size: 11px; font-weight: 700;">JP</span>
+          </span>
+          <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">JobPing</span>
         </div>
-      </div>
 
-      <!-- Right panel: form -->
-      <div class="flex items-center justify-center px-6 py-12">
-        <div class="w-full max-w-sm fade-up">
-          <h2 class="text-2xl font-bold text-text-primary mb-1">Sign in</h2>
-          <p class="text-text-secondary text-sm mb-8">Welcome back to JobPing.</p>
+        <div class="card">
+          <h2 style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px;">Sign in</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">Welcome back to JobPing.</p>
 
-          <!-- social (disabled) -->
-          <div class="grid grid-cols-2 gap-3 mb-6">
-            <button
-              type="button"
-              disabled
-              matTooltip="Coming soon"
-              class="py-2.5 rounded-md border border-border-default text-text-muted text-sm cursor-not-allowed opacity-60"
-            >
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+            <button type="button" disabled matTooltip="Coming soon" class="btn btn-secondary" style="justify-content: center;">
               Google
             </button>
-            <button
-              type="button"
-              disabled
-              matTooltip="Coming soon"
-              class="py-2.5 rounded-md border border-border-default text-text-muted text-sm cursor-not-allowed opacity-60"
-            >
+            <button type="button" disabled matTooltip="Coming soon" class="btn btn-secondary" style="justify-content: center;">
               GitHub
             </button>
           </div>
 
-          <div class="flex items-center gap-3 mb-6">
-            <span class="h-px flex-1 bg-border-subtle"></span>
-            <span class="text-xs text-text-muted">or with email</span>
-            <span class="h-px flex-1 bg-border-subtle"></span>
+          <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 16px;">
+            <span style="height: 1px; flex: 1; background: var(--border-default);"></span>
+            <span style="font-size: 11px; color: var(--text-muted);">or with email</span>
+            <span style="height: 1px; flex: 1; background: var(--border-default);"></span>
           </div>
 
-          <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4">
+          <form [formGroup]="form" (ngSubmit)="submit()" style="display: flex; flex-direction: column; gap: 14px;">
             <div>
-              <label class="block text-sm text-text-secondary mb-1.5">Email</label>
+              <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Email</label>
               <input class="jp-input" type="email" formControlName="email" placeholder="you@example.com" />
             </div>
             <div>
-              <label class="block text-sm text-text-secondary mb-1.5">Password</label>
+              <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Password</label>
               <input class="jp-input" type="password" formControlName="password" placeholder="••••••••" />
             </div>
 
             @if (errorMessage()) {
-              <p class="text-sm text-error">{{ errorMessage() }}</p>
+              <p style="font-size: 13px; color: var(--error);">{{ errorMessage() }}</p>
             }
 
             <button
               type="submit"
               [disabled]="loading() || form.invalid"
-              class="w-full py-3 rounded-md bg-accent text-white font-medium hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              class="btn btn-primary"
+              style="justify-content: center; padding: 10px 14px;"
             >
               @if (loading()) {
-                <mat-progress-spinner diameter="20" mode="indeterminate" />
+                <mat-progress-spinner diameter="16" mode="indeterminate" />
               } @else {
                 Sign in
               }
             </button>
           </form>
-
-          <p class="text-sm text-text-secondary mt-6 text-center">
-            No account?
-            <a routerLink="/auth/register" class="text-accent-light hover:underline">Create one</a>
-          </p>
         </div>
+
+        <p style="font-size: 13px; color: var(--text-secondary); margin-top: 16px; text-align: center;">
+          No account?
+          <a routerLink="/auth/register" style="color: var(--accent); text-decoration: none;">Create one</a>
+        </p>
       </div>
     </div>
   `,
@@ -106,6 +90,7 @@ export class LoginComponent {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  readonly theme = inject(ThemeService);
 
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);

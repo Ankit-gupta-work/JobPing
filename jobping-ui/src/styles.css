@@ -1,5 +1,5 @@
-/* Google Fonts: Outfit + DM Mono */
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+/* Google Fonts: Inter + JetBrains Mono */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* Angular Material theme (closest to our purple accent) */
 @import '@angular/material/prebuilt-themes/magenta-violet.css';

@@ -25,6 +25,13 @@ export class JobService {
       .pipe(map((res) => res.data));
   }
 
+  // Real route, but the matching engine (Step 6) isn't built yet — always returns [].
+  getJobMatches(): Observable<JobListItem[]> {
+    return this.http
+      .get<ApiResponse<JobListItem[]>>(`${this.base}/matches`)
+      .pipe(map((res) => res.data));
+  }
+
   getJobById(id: number): Observable<JobDetail> {
     return this.http
       .get<ApiResponse<JobDetail>>(`${this.base}/${id}`)

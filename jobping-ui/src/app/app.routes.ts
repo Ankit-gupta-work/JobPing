@@ -49,19 +49,19 @@ export const routes: Routes = [
     path: 'alerts',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./pages/placeholder/placeholder.component').then((m) => m.PlaceholderComponent),
+      import('./pages/alerts/alerts.component').then((m) => m.AlertsComponent),
   },
   {
     path: 'saved',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./pages/placeholder/placeholder.component').then((m) => m.PlaceholderComponent),
+      import('./pages/saved/saved.component').then((m) => m.SavedComponent),
   },
   {
     path: 'preferences',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./pages/placeholder/placeholder.component').then((m) => m.PlaceholderComponent),
+      import('./pages/preferences/preferences.component').then((m) => m.PreferencesComponent),
   },
   {
     path: 'profile',

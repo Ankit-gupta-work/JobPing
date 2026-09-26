@@ -1,158 +1,246 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { NavbarComponent } from '../../../components/navbar/navbar.component';
+import { ActivatedRoute } from '@angular/router';
+import { AppLayoutComponent } from '../../../components/app-layout/app-layout.component';
+import { JobCardComponent } from '../../../components/job-card/job-card.component';
+import { EmptyStateComponent } from '../../../components/empty-state/empty-state.component';
+import { LoadingSkeletonComponent } from '../../../components/loading-skeleton/loading-skeleton.component';
+import { IconComponent } from '../../../components/icon/icon.component';
 import { JobService } from '../../../services/job.service';
 import { MasterDataService } from '../../../services/master-data.service';
 import { JobListItem, Location } from '../../../models';
-import { timeAgo } from '../../../utils/time-ago';
+
+type Tab = 'all' | 'matches';
+
+const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
+  All: 'globe',
+  Remotive: 'globe',
+  Arbeitnow: 'globe',
+  WWR: 'rss',
+};
 
 @Component({
   selector: 'app-jobs-list',
-  imports: [NavbarComponent, RouterLink],
+  imports: [
+    AppLayoutComponent,
+    JobCardComponent,
+    EmptyStateComponent,
+    LoadingSkeletonComponent,
+    IconComponent,
+  ],
   template: `
-    <app-navbar />
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 grid lg:grid-cols-[260px_1fr] gap-6">
-      <!-- ===== Sidebar filters ===== -->
-      <aside class="space-y-6 lg:sticky lg:top-20 self-start">
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary mb-3">Source</h3>
-          <div class="flex flex-col gap-1">
+    <app-layout>
+      <div class="page-header">
+        <h1 class="page-title">Jobs</h1>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab" [class.active]="tab() === 'all'" (click)="setTab('all')">All Jobs</button>
+        <button class="tab" [class.active]="tab() === 'matches'" (click)="setTab('matches')">Best Matches</button>
+      </div>
+
+      @if (tab() === 'matches') {
+        @if (matchesLoading()) {
+          <div class="job-list">
+            @for (i of [1, 2, 3]; track i) {
+              <app-loading-skeleton type="job-card" />
+            }
+          </div>
+        } @else if (matches().length === 0) {
+          <app-empty-state
+            title="No matches yet"
+            description="The matching engine ships in Step 6. Switch to the All Jobs tab above to browse everything indexed so far."
+          >
+            <app-icon icon name="target" [size]="20" />
+          </app-empty-state>
+        } @else {
+          <div class="job-list">
+            @for (job of matches(); track job.id) {
+              <app-job-card [job]="job" [showMatchBar]="true" (save)="toggleSave(job)" />
+            }
+          </div>
+        }
+      } @else {
+        <div class="jobs-layout">
+          <!-- Mobile/tablet: horizontal filter bar -->
+          <div class="filter-mobile-bar">
             @for (s of sources; track s) {
-              <button (click)="setSource(s)"
-                class="text-left px-3 py-2 rounded-md text-sm transition-colors"
-                [class.bg-accent-muted]="currentSource() === s"
-                [class.text-accent-light]="currentSource() === s"
-                [class.text-text-secondary]="currentSource() !== s"
-                [class.hover:bg-bg-elevated]="currentSource() !== s">
+              <button class="filter-chip" [class.active]="currentSource() === s" (click)="setSource(s)">
                 {{ s }}
               </button>
             }
+            <div style="width: 1px; height: 20px; background: var(--border-default); flex-shrink: 0;"></div>
+            <button class="filter-chip" (click)="openFilterSheet()">
+              <app-icon name="sliders-horizontal" [size]="12" />
+              Filters
+            </button>
           </div>
-        </div>
 
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary mb-3">Remote</h3>
-          <label class="flex items-center gap-2 cursor-pointer text-sm text-text-secondary">
-            <input type="checkbox" [checked]="remoteOnly()" (change)="toggleRemote()" class="accent-accent w-4 h-4" />
-            Remote only
-          </label>
-        </div>
+          <!-- Desktop: filter sidebar -->
+          <aside class="filter-sidebar">
+            <div class="filter-group">
+              <p class="filter-label">Source</p>
+              @for (s of sources; track s) {
+                <button
+                  class="filter-option"
+                  [class.selected]="currentSource() === s"
+                  (click)="setSource(s)"
+                >
+                  <app-icon [name]="sourceIcon(s)" [size]="14" />
+                  {{ s }}
+                </button>
+              }
+            </div>
 
-        <div>
-          <h3 class="text-sm font-semibold text-text-primary mb-3">Location</h3>
-          <div class="flex flex-wrap gap-2">
-            @for (loc of locations(); track loc.id) {
-              <button (click)="toggleLocation(loc.name)"
-                class="chip" [class.chip-active]="selectedLocation() === loc.name">
-                {{ loc.name }}
-              </button>
-            }
-          </div>
-        </div>
-      </aside>
+            <div class="filter-group">
+              <p class="filter-label">Remote</p>
+              <div class="settings-row" style="padding: 5px 8px;">
+                <span style="font-size: 13px; color: var(--text-secondary);">Remote only</span>
+                <button class="toggle" [class.on]="remoteOnly()" (click)="toggleRemote()" type="button">
+                  <span class="toggle-thumb"></span>
+                </button>
+              </div>
+            </div>
 
-      <!-- ===== Job list ===== -->
-      <section>
-        <div class="flex items-center justify-between mb-4">
-          <h1 class="text-2xl font-bold text-text-primary">Jobs</h1>
-          @if (!loading()) {
-            <span class="text-sm text-text-muted">{{ total() }} result{{ total() === 1 ? '' : 's' }}</span>
-          }
-        </div>
+            <div class="filter-group">
+              <p class="filter-label">Location</p>
+              <div class="filter-chips">
+                @for (loc of locations(); track loc.id) {
+                  <button
+                    class="filter-chip"
+                    [class.active]="selectedLocation() === loc.name"
+                    (click)="toggleLocation(loc.name)"
+                  >
+                    {{ loc.name }}
+                  </button>
+                }
+              </div>
+            </div>
+          </aside>
 
-        @if (loading()) {
-          <div class="space-y-3">
-            @for (i of [1,2,3,4,5]; track i) {
-              <div class="p-5 rounded-lg bg-bg-surface border border-border-subtle animate-pulse">
-                <div class="h-4 w-1/3 bg-bg-elevated rounded mb-3"></div>
-                <div class="h-3 w-1/4 bg-bg-elevated rounded mb-4"></div>
-                <div class="flex gap-2"><div class="h-5 w-16 bg-bg-elevated rounded-full"></div><div class="h-5 w-16 bg-bg-elevated rounded-full"></div></div>
+          <section class="jobs-list">
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+              @if (!loading()) {
+                <span style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
+                  {{ total() }} result{{ total() === 1 ? '' : 's' }}
+                </span>
+              }
+            </div>
+
+            @if (loading()) {
+              <div class="job-list">
+                @for (i of [1, 2, 3, 4, 5]; track i) {
+                  <app-loading-skeleton type="job-card" />
+                }
+              </div>
+            } @else if (jobs().length === 0) {
+              <app-empty-state
+                title="No jobs match your filters"
+                description="Try clearing a filter or widening your search."
+              >
+                <app-icon icon name="search" [size]="20" />
+              </app-empty-state>
+            } @else {
+              <div class="job-list">
+                @for (job of jobs(); track job.id) {
+                  <app-job-card [job]="job" (save)="toggleSave(job)" />
+                }
+              </div>
+
+              <div class="pagination" style="margin-top: 16px;">
+                <div class="pagination-mobile">
+                  <button class="btn btn-secondary" [disabled]="page() <= 1" (click)="prevPage()">
+                    <app-icon name="chevron-left" [size]="14" /> Prev
+                  </button>
+                  <span class="pagination-info">{{ page() }} / {{ totalPages() || 1 }}</span>
+                  <button class="btn btn-secondary" [disabled]="page() >= totalPages()" (click)="nextPage()">
+                    Next <app-icon name="chevron-right" [size]="14" />
+                  </button>
+                </div>
+
+                <div class="pagination-desktop">
+                  <button class="btn btn-secondary" [disabled]="page() <= 1" (click)="prevPage()">
+                    <app-icon name="chevron-left" [size]="14" /> Prev
+                  </button>
+                  <div class="pagination-pages">
+                    @for (p of pageNumbers(); track p) {
+                      <button class="pagination-page-btn" [class.active]="p === page()" (click)="goToPage(p)">
+                        {{ p }}
+                      </button>
+                    }
+                  </div>
+                  <button class="btn btn-secondary" [disabled]="page() >= totalPages()" (click)="nextPage()">
+                    Next <app-icon name="chevron-right" [size]="14" />
+                  </button>
+                </div>
               </div>
             }
-          </div>
-        } @else if (jobs().length === 0) {
-          <div class="text-center py-20 fade-up">
-            <div class="text-4xl mb-3">🔍</div>
-            <p class="text-text-primary font-semibold">No jobs match your filters</p>
-            <p class="text-text-secondary text-sm mt-1">Try clearing a filter or widening your search.</p>
-          </div>
-        } @else {
-          <div class="space-y-3">
-            @for (job of jobs(); track job.id) {
-              <article class="p-5 rounded-lg bg-bg-surface border border-border-default hover:border-border-strong transition-colors fade-up">
-                <div class="flex items-start gap-4">
-                  <div class="grid place-items-center w-11 h-11 rounded-md bg-accent-muted border border-accent-border text-accent-light font-semibold shrink-0">
-                    {{ initials(job.company) }}
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-start justify-between gap-3">
-                      <div class="min-w-0">
-                        <a [routerLink]="['/jobs', job.id]" class="block text-text-primary font-semibold hover:text-accent-light transition-colors truncate">
-                          {{ job.title }}
-                        </a>
-                        <p class="text-text-secondary text-sm truncate">{{ job.company }}</p>
-                      </div>
-                      <button (click)="toggleSave(job)" [title]="job.isSaved ? 'Unsave' : 'Save'"
-                        class="shrink-0 text-lg transition-transform hover:scale-110"
-                        [class.text-accent-light]="job.isSaved"
-                        [class.text-text-muted]="!job.isSaved">
-                        {{ job.isSaved ? '★' : '☆' }}
-                      </button>
-                    </div>
+          </section>
+        </div>
+      }
 
-                    <div class="flex flex-wrap items-center gap-2 mt-2">
-                      <span class="text-xs px-2 py-0.5 rounded-full bg-bg-elevated border border-border-default text-text-secondary">{{ job.source }}</span>
-                      @if (job.isRemote) {
-                        <span class="text-xs px-2 py-0.5 rounded-full bg-accent-muted border border-accent-border text-accent-light">Remote</span>
-                      }
-                      @if (job.location) {
-                        <span class="text-xs text-text-muted">📍 {{ job.location }}</span>
-                      }
-                      @if (job.jobType) {
-                        <span class="text-xs text-text-muted">• {{ job.jobType }}</span>
-                      }
-                    </div>
-
-                    @if (job.skills.length) {
-                      <div class="flex flex-wrap gap-1.5 mt-3">
-                        @for (skill of job.skills.slice(0, 6); track skill) {
-                          <span class="text-xs px-2 py-0.5 rounded bg-bg-elevated text-text-secondary">{{ skill }}</span>
-                        }
-                        @if (job.skills.length > 6) {
-                          <span class="text-xs px-2 py-0.5 text-text-muted">+{{ job.skills.length - 6 }}</span>
-                        }
-                      </div>
-                    }
-
-                    <p class="text-xs text-text-muted mt-3">{{ ago(job.fetchedAt) }}</p>
-                  </div>
-                </div>
-              </article>
-            }
+      <!-- Mobile filter bottom sheet -->
+      <div class="bottom-sheet-overlay" [class.open]="filterSheetOpen()" (click)="closeFilterSheet()"></div>
+      <div class="bottom-sheet" [class.open]="filterSheetOpen()">
+        <div class="bottom-sheet-handle"></div>
+        <div class="bottom-sheet-header">
+          <span class="section-title">Filters</span>
+          <button class="btn btn-ghost btn-sm" (click)="clearFilters()">Clear all</button>
+        </div>
+        <div class="bottom-sheet-body">
+          <div class="filter-group">
+            <p class="filter-label">Source</p>
+            <div class="filter-chips">
+              @for (s of sources; track s) {
+                <button class="filter-chip" [class.active]="currentSource() === s" (click)="setSource(s)">
+                  {{ s }}
+                </button>
+              }
+            </div>
           </div>
 
-          <!-- Pagination -->
-          <div class="flex items-center justify-between mt-6">
-            <button (click)="prevPage()" [disabled]="page() <= 1"
-              class="px-4 py-2 rounded-md border border-border-default text-sm text-text-primary hover:border-border-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              ← Prev
-            </button>
-            <span class="text-sm text-text-secondary">Page {{ page() }} of {{ totalPages() || 1 }}</span>
-            <button (click)="nextPage()" [disabled]="page() >= totalPages()"
-              class="px-4 py-2 rounded-md border border-border-default text-sm text-text-primary hover:border-border-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              Next →
-            </button>
+          <div class="filter-group">
+            <p class="filter-label">Location</p>
+            <div class="filter-chips">
+              @for (loc of locations(); track loc.id) {
+                <button
+                  class="filter-chip"
+                  [class.active]="selectedLocation() === loc.name"
+                  (click)="toggleLocation(loc.name)"
+                >
+                  {{ loc.name }}
+                </button>
+              }
+            </div>
           </div>
-        }
-      </section>
-    </main>
+
+          <div class="filter-group">
+            <div class="settings-row">
+              <span class="settings-key">Remote only</span>
+              <button class="toggle" [class.on]="remoteOnly()" (click)="toggleRemote()" type="button">
+                <span class="toggle-thumb"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-sheet-footer">
+          <button class="btn btn-primary" style="width: 100%;" (click)="closeFilterSheet()">
+            Show {{ total() }} results
+          </button>
+        </div>
+      </div>
+    </app-layout>
   `,
 })
 export class JobsListComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute);
   private readonly jobService = inject(JobService);
   private readonly masterData = inject(MasterDataService);
 
   readonly sources = ['All', 'Remotive', 'Arbeitnow', 'WWR'];
+
+  readonly tab = signal<Tab>('all');
+  readonly matches = signal<JobListItem[]>([]);
+  readonly matchesLoading = signal(true);
 
   readonly jobs = signal<JobListItem[]>([]);
   readonly locations = signal<Location[]>([]);
@@ -167,8 +255,64 @@ export class JobsListComponent implements OnInit {
   readonly total = signal(0);
   readonly totalPages = signal(0);
 
+  readonly filterSheetOpen = signal(false);
+
   ngOnInit(): void {
+    if (this.route.snapshot.queryParamMap.get('tab') === 'matches') {
+      this.tab.set('matches');
+    }
     this.masterData.getLocations().subscribe((l) => this.locations.set(l));
+    this.load();
+    this.jobService.getJobMatches().subscribe({
+      next: (jobs) => {
+        this.matches.set(jobs);
+        this.matchesLoading.set(false);
+      },
+      error: () => this.matchesLoading.set(false),
+    });
+  }
+
+  setTab(t: Tab): void {
+    this.tab.set(t);
+  }
+
+  sourceIcon(s: string): 'globe' | 'rss' | 'external-link' {
+    return SOURCE_ICONS[s] ?? 'globe';
+  }
+
+  openFilterSheet(): void {
+    this.filterSheetOpen.set(true);
+    document.body.classList.add('sheet-open');
+  }
+
+  closeFilterSheet(): void {
+    this.filterSheetOpen.set(false);
+    document.body.classList.remove('sheet-open');
+  }
+
+  clearFilters(): void {
+    this.currentSource.set('All');
+    this.remoteOnly.set(false);
+    this.selectedLocation.set(null);
+    this.page.set(1);
+    this.load();
+  }
+
+  pageNumbers(): number[] {
+    const total = this.totalPages();
+    const current = this.page();
+    const windowSize = 5;
+    let start = Math.max(1, current - Math.floor(windowSize / 2));
+    const end = Math.min(total, start + windowSize - 1);
+    start = Math.max(1, end - windowSize + 1);
+    const pages: number[] = [];
+    for (let p = start; p <= end; p++) pages.push(p);
+    return pages;
+  }
+
+  goToPage(p: number): void {
+    if (p === this.page()) return;
+    this.page.set(p);
     this.load();
   }
 
@@ -227,18 +371,9 @@ export class JobsListComponent implements OnInit {
 
   toggleSave(job: JobListItem): void {
     const prev = job.isSaved;
-    job.isSaved = !prev; // optimistic
+    job.isSaved = !prev;
     this.jobService.saveJob(job.id).subscribe({
-      error: () => (job.isSaved = prev), // revert on failure
+      error: () => (job.isSaved = prev),
     });
-  }
-
-  initials(company: string): string {
-    const parts = company.trim().split(/\s+/);
-    return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '–';
-  }
-
-  ago(iso: string): string {
-    return timeAgo(iso);
   }
 }
