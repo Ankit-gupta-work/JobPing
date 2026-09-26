@@ -1,0 +1,25 @@
+# .NET build output
+bin/
+obj/
+*.user
+
+# Visual Studio
+.vs/
+
+# Environment-specific config — carries real local secrets (DB password, JWT dev
+# secret). appsettings.json itself (the checked-in template with empty placeholders)
+# is intentionally NOT matched by this pattern.
+appsettings.*.json
+
+# Angular (jobping-ui has its own .gitignore; this is a root-level safety net)
+node_modules/
+dist/
+.angular/
+
+# Environment files
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
