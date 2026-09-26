@@ -4,6 +4,23 @@
 > This is the complete specification for the JobPing project.
 > Build in the exact order described. Do not skip steps.
 
+## Session start checklist
+- JobPing: developer job-alert platform. .NET 9 API + Angular 21 UI, Postgres,
+  Redis, RabbitMQ (planned), SendGrid (planned). Users set skills/location
+  prefs and get emailed when a fetched job matches above their threshold.
+- Steps 1-5 + Auth are built and working. Step 6 (matching engine) is next;
+  Steps 7-10 (RabbitMQ workers, Docker, deploy, CI/CD) have no code yet.
+- **Always read `.ai-context/PENDING.md` and the last entry of
+  `.ai-context/SESSION_LOG.md` first** — they carry current status faster
+  than this whole spec does.
+- Only open source files relevant to the current task — this file is the
+  target spec, not a map of what already exists; check
+  `.ai-context/ARCHITECTURE.md` for what's actually there before assuming
+  the spec's folder layout is exact (a few things drifted — see
+  `.ai-context/DECISIONS.md`).
+- Update `.ai-context/PENDING.md` and append to
+  `.ai-context/SESSION_LOG.md` at the end of every task.
+
 ---
 
 ## Table of Contents
@@ -927,17 +944,45 @@ private int CalculateMatch(List<int> userSkillIds, List<int> jobSkillIds)
 
 **Trigger:** Consumes `email.send` queue from RabbitMQ
 
+**Attempt count lives in Postgres (`mail_queue.no_of_attempts`), not in the
+message.** The message itself is disposable — on failure MailWorker
+re-publishes a fresh copy into the retry ladder (see §11); it never relies
+on RabbitMQ to redeliver the original. This also means the `email.send`
+queue must NOT have a message TTL — a message must never vanish just
+because MailWorker was briefly down. Only the retry-delay queues have TTLs.
+
 **Steps per message:**
-1. Update `mail_queue` row — set `status = Processing`
+1. Load the `mail_queue` row by `mailQueueId`. Update `status = Processing`
 2. Call SendGrid API with subject, body, receiver
 3. On success:
    - Update `mail_queue` — set `status = Sent`, `sent_at = now`
-   - Acknowledge (ack) the RabbitMQ message
+   - `ack` the message
 4. On failure:
-   - Increment `no_of_attempts`
-   - If attempts < 3: nack with requeue=false (RabbitMQ handles retry via dead letter)
-   - If attempts >= 3: Update `mail_queue` — set `status = Failed`, `error_msg`
-   - Route to dead letter exchange
+   - Increment `mail_queue.no_of_attempts`
+   - If `no_of_attempts == 1`: publish a new message with the same payload
+     to `email.retry.5s` (routing key `email.retry.5s`). Set
+     `next_retry_at = now + 5s`
+   - Else if `no_of_attempts == 2`: publish to `email.retry.30s`. Set
+     `next_retry_at = now + 30s`
+   - Else (`no_of_attempts >= 3`): update `mail_queue` — set
+     `status = Failed`, `error_msg`. Publish the message to `email.dead`
+     (routing key `email.failed`) for centralized logging only — nothing
+     consumes `email.dead` for retry
+   - In every failure branch: `ack` the **original** message on
+     `email.send`. It has already been re-published to a retry queue or
+     marked permanently failed — never nack it, and never let it be
+     handled twice
+
+**DeadLetterHandler** (consumes `email.dead`):
+- Logs the failure (structured: `mailQueueId`, `userId`, final SendGrid
+  error)
+- Confirms `mail_queue.status = Failed` — idempotent safety net in case
+  MailWorker's own write in step 4 failed
+- `ack`s
+
+This gives 3 total attempts (1 immediate + 2 retries) with 5s → 30s
+backoff, and every message is ack'd exactly once per queue it passes
+through — nothing is ever dropped by a queue-level TTL.
 
 ---
 
@@ -951,10 +996,12 @@ Exchange: jobs.exchange      (type: direct)
       └── Consumer: MatchAndAlertWorker
 
 Exchange: email.exchange     (type: direct)
-  ├── Queue: email.send      (routing key: email.send)
-  │   └── Consumer: MailWorker
-  └── Queue: email.dead      (routing key: email.failed)
-      └── Consumer: DeadLetterHandler (logs + updates mail_queue)
+  ├── Queue: email.send        (routing key: email.send)
+  │   └── Consumer: MailWorker         -- no TTL; retries are explicit republishes, never queue expiry
+  ├── Queue: email.retry.5s    (routing key: email.retry.5s)   -- no consumer. TTL 5s, DLX → email.exchange/email.send
+  ├── Queue: email.retry.30s   (routing key: email.retry.30s)  -- no consumer. TTL 30s, DLX → email.exchange/email.send
+  └── Queue: email.dead        (routing key: email.failed)     -- terminal sink, only reached after the final attempt
+      └── Consumer: DeadLetterHandler (logs + confirms mail_queue.status = Failed)
 
 Exchange: notification.exchange  (type: fanout)
   └── Queue: notification.create
@@ -964,14 +1011,37 @@ Exchange: notification.exchange  (type: fanout)
 ### Queue Configuration
 
 ```csharp
-// Dead letter exchange setup for email.send queue
-var queueArgs = new Dictionary<string, object>
+// email.send — the working queue. NO message TTL: a message must not
+// vanish just because MailWorker is briefly unavailable. Retries are
+// driven entirely by MailWorker explicitly re-publishing into the ladder
+// below, never by this queue expiring messages on its own.
+channel.QueueDeclare("email.send", durable: true, exclusive: false, autoDelete: false);
+
+// Retry ladder — each queue has NO consumer. A message just sits until its
+// TTL expires, then RabbitMQ auto-dead-letters it into email.exchange with
+// routing key "email.send", landing it back on the working queue for the
+// next delivery attempt. This is the standard TTL+DLX delayed-retry
+// pattern for stock RabbitMQ (no delayed-message plugin required).
+var retry5s = new Dictionary<string, object>
 {
     { "x-dead-letter-exchange", "email.exchange" },
-    { "x-dead-letter-routing-key", "email.failed" },
-    { "x-message-ttl", 300000 }  // 5 min TTL before going to dead letter
+    { "x-dead-letter-routing-key", "email.send" },
+    { "x-message-ttl", 5000 }
 };
-channel.QueueDeclare("email.send", durable: true, exclusive: false, autoDelete: false, arguments: queueArgs);
+channel.QueueDeclare("email.retry.5s", durable: true, exclusive: false, autoDelete: false, arguments: retry5s);
+
+var retry30s = new Dictionary<string, object>
+{
+    { "x-dead-letter-exchange", "email.exchange" },
+    { "x-dead-letter-routing-key", "email.send" },
+    { "x-message-ttl", 30000 }
+};
+channel.QueueDeclare("email.retry.30s", durable: true, exclusive: false, autoDelete: false, arguments: retry30s);
+
+// email.dead — terminal sink for logging only. MailWorker publishes here
+// explicitly after the final failed attempt; nothing dead-letters into it
+// automatically, and nothing consumes it to retry.
+channel.QueueDeclare("email.dead", durable: true, exclusive: false, autoDelete: false);
 ```
 
 ### Message Payload Formats
