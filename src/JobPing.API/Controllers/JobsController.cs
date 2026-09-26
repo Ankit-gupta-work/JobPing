@@ -13,10 +13,12 @@ namespace JobPing.API.Controllers;
 public class JobsController : ControllerBase
 {
     private readonly IJobService _jobs;
+    private readonly IMatchingService _matching;
 
-    public JobsController(IJobService jobs)
+    public JobsController(IJobService jobs, IMatchingService matching)
     {
         _jobs = jobs;
+        _matching = matching;
     }
 
     private int CurrentUserId => int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -30,11 +32,12 @@ public class JobsController : ControllerBase
         return Ok(ApiResponseDto<PagedResultDto<JobListItemDto>>.Ok(result));
     }
 
-    // GET /api/jobs/matches — implemented in Step 6; empty for now.
+    // GET /api/jobs/matches
     [HttpGet("matches")]
-    public ActionResult<ApiResponseDto<List<JobListItemDto>>> GetMatches()
+    public async Task<ActionResult<ApiResponseDto<List<JobListItemDto>>>> GetMatches()
     {
-        return Ok(ApiResponseDto<List<JobListItemDto>>.Ok(new List<JobListItemDto>()));
+        var matches = await _matching.GetTopMatchesAsync(CurrentUserId);
+        return Ok(ApiResponseDto<List<JobListItemDto>>.Ok(matches));
     }
 
     // GET /api/jobs/saved

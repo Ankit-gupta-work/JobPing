@@ -14,9 +14,28 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------------------------------------------------------------------
+// RUN_MODE — lets docker-compose run "api" (web only) and "worker"
+// (background services only) as separate containers from the same image
+// (CLAUDE.md §14/§16 Step 8). In Development, always run everything
+// together — that's the single-process convenience every local dev/test
+// session so far has relied on (`dotnet run` with no RUN_MODE set at all).
+// Outside Development, RUN_MODE=worker means background-only; anything
+// else (including unset, which is what the api container uses) means
+// web-only. Nothing about this changes local dev behavior.
+// ---------------------------------------------------------------------
+var isDevelopment = builder.Environment.IsDevelopment();
+var isWorkerOnly = !isDevelopment &&
+    string.Equals(builder.Configuration["RUN_MODE"], "worker", StringComparison.OrdinalIgnoreCase);
+var runWebPipeline = isDevelopment || !isWorkerOnly;
+var runBackgroundServices = isDevelopment || isWorkerOnly;
+
+// ---------------------------------------------------------------------
 // Controllers
 // ---------------------------------------------------------------------
-builder.Services.AddControllers();
+if (runWebPipeline)
+{
+    builder.Services.AddControllers();
+}
 
 // ---------------------------------------------------------------------
 // PostgreSQL (EF Core)
@@ -48,6 +67,9 @@ builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IMasterDataService, MasterDataService>();
 builder.Services.AddScoped<IPreferenceService, PreferenceService>();
 builder.Services.AddScoped<IJobService, JobService>();
+builder.Services.AddScoped<IMatchingService, MatchingService>();
+builder.Services.AddScoped<IAlertService, AlertService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
@@ -71,77 +93,84 @@ builder.Services.AddHttpClient<WWRRssClient>(c =>
 });
 
 builder.Services.AddSingleton<JobMappingService>();
-// RabbitMQ stub for now — replaced with the real publisher in Step 7.
-builder.Services.AddSingleton<IMessagePublisher, LoggingMessagePublisher>();
+builder.Services.AddSingleton<IMessagePublisher, RabbitMQPublisher>();
 builder.Services.AddScoped<IJobFetchService, JobFetchService>();
-builder.Services.AddHostedService<FetchJobsWorker>();
+builder.Services.AddScoped<IEmailService, SendGridEmailService>();
+
+if (runBackgroundServices)
+{
+    builder.Services.AddHostedService<FetchJobsWorker>();
+    builder.Services.AddHostedService<MatchAndAlertWorker>();
+    builder.Services.AddHostedService<MailWorker>();
+    builder.Services.AddHostedService<DeadLetterHandler>();
+}
 
 // ---------------------------------------------------------------------
-// JWT authentication
-// ---------------------------------------------------------------------
-var jwtSecret = builder.Configuration["Jwt:SecretKey"]
-    ?? throw new InvalidOperationException("Jwt:SecretKey is not configured.");
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-            ClockSkew = TimeSpan.Zero, // no grace period after expiry
-            RoleClaimType = "role" // [Authorize(Roles="Admin")] reads the "role" claim
-        };
-    });
-builder.Services.AddAuthorization();
-
-// ---------------------------------------------------------------------
-// CORS — Angular dev server
+// JWT authentication, CORS, Swagger — web-pipeline only, skipped entirely
+// in a worker-only container (nothing there ever receives an HTTP request
+// needing auth/CORS/docs).
 // ---------------------------------------------------------------------
 const string AngularCors = "AngularCors";
-builder.Services.AddCors(options =>
+
+if (runWebPipeline)
 {
-    options.AddPolicy(AngularCors, policy =>
-        policy.WithOrigins("http://localhost:4200")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials());
-});
+    var jwtSecret = builder.Configuration["Jwt:SecretKey"]
+        ?? throw new InvalidOperationException("Jwt:SecretKey is not configured.");
 
-// ---------------------------------------------------------------------
-// Swagger + JWT bearer support
-// ---------------------------------------------------------------------
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "JobPing API", Version = "v1" });
-
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header,
-        Description = "Enter the JWT access token (without the 'Bearer ' prefix)."
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
         {
-            new OpenApiSecurityScheme
+            options.TokenValidationParameters = new TokenValidationParameters
             {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
+                ValidateIssuer = true,
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+                ClockSkew = TimeSpan.Zero, // no grace period after expiry
+                RoleClaimType = "role" // [Authorize(Roles="Admin")] reads the "role" claim
+            };
+        });
+    builder.Services.AddAuthorization();
+
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy(AngularCors, policy =>
+            policy.WithOrigins("http://localhost:4200")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials());
     });
-});
+
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo { Title = "JobPing API", Version = "v1" });
+
+        c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = ParameterLocation.Header,
+            Description = "Enter the JWT access token (without the 'Bearer ' prefix)."
+        });
+
+        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                },
+                Array.Empty<string>()
+            }
+        });
+    });
+}
 
 var app = builder.Build();
 
@@ -149,30 +178,42 @@ var app = builder.Build();
 app.UseMiddleware<ExceptionMiddleware>();
 
 // ---------------------------------------------------------------------
-// Auto-run migrations on startup (development only)
+// Auto-run migrations on startup (development only — coding rule 14 says
+// never in production; the compose stack applies migrations as a
+// deliberate separate step, see PENDING.md/README for the command).
 // ---------------------------------------------------------------------
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<JobPingDbContext>();
     db.Database.Migrate();
-
-    app.UseSwagger();
-    app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (runWebPipeline)
+{
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
 
-app.UseCors(AngularCors);
+        // Only redirect to HTTPS for direct local access. In compose, nginx
+        // terminates TLS and proxies to this container over plain HTTP —
+        // redirecting there would break the proxied request entirely.
+        app.UseHttpsRedirection();
+    }
 
-app.UseAuthentication();
-app.UseMiddleware<JwtBlacklistMiddleware>(); // reject revoked access tokens
-app.UseAuthorization();
+    app.UseCors(AngularCors);
 
-app.MapControllers();
+    app.UseAuthentication();
+    app.UseMiddleware<JwtBlacklistMiddleware>(); // reject revoked access tokens
+    app.UseAuthorization();
+
+    app.MapControllers();
+}
 
 // ---------------------------------------------------------------------
-// Health check
+// Health check — always available, even in a worker-only container
+// (useful for a liveness probe regardless of mode).
 // ---------------------------------------------------------------------
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 

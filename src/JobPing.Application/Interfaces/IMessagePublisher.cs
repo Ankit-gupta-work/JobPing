@@ -24,3 +24,11 @@ public class NotificationMessage
     public string Message { get; set; } = null!;
     public string Type { get; set; } = null!;
 }
+
+// Wire shape for the job.fetched message — matches CLAUDE.md §11's documented payload.
+public class JobFetchedMessage
+{
+    public int JobId { get; set; }
+    public DateTime FetchedAt { get; set; }
+    public string Source { get; set; } = null!;
+}

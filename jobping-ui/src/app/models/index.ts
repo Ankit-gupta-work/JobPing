@@ -98,3 +98,22 @@ export interface PagedResult<T> {
   pageSize: number;
   totalPages: number;
 }
+
+// ----- Alerts & Notifications -----
+export interface AlertHistoryItem {
+  id: number;
+  jobId: number;
+  jobTitle: string;
+  company: string;
+  sourceUrl: string | null;
+  sentAt: string;
+  status: string; // "Sent" | "Failed"
+}
+export interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  type: string; // "job_match" | "alert_sent" | "system"
+  isRead: boolean;
+  createdOn: string;
+}
