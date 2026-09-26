@@ -55,15 +55,21 @@ public class JobFetchService : IJobFetchService
 
         _logger.LogInformation("FetchJobs: starting run (lock acquired).");
 
-        // (c) Mark background task as Running.
-        var task = await GetOrCreateTaskAsync(cancellationToken);
-        task.LastStatus = "Running";
-        task.LastRunAt = DateTime.UtcNow;
-        task.LastErrorMsg = null;
-        await _db.SaveChangesAsync(cancellationToken);
-
+        // Everything after this point — including the very first DB write — must be
+        // inside try/finally. It used to start outside the try: if GetOrCreateTaskAsync
+        // or its SaveChangesAsync threw (e.g. schema not migrated yet), the lock was
+        // never released and sat orphaned for the full 90-minute TTL even though nothing
+        // was actually running. Caught live against a fresh, not-yet-migrated compose DB.
+        BackgroundTask? task = null;
         try
         {
+            // (c) Mark background task as Running.
+            task = await GetOrCreateTaskAsync(cancellationToken);
+            task.LastStatus = "Running";
+            task.LastRunAt = DateTime.UtcNow;
+            task.LastErrorMsg = null;
+            await _db.SaveChangesAsync(cancellationToken);
+
             // Load skills once for the whole run (in-memory match table).
             var skills = await _db.Skills.Where(s => s.IsActive).AsNoTracking().ToListAsync(cancellationToken);
 
@@ -98,7 +104,8 @@ public class JobFetchService : IJobFetchService
         catch (Exception ex)
         {
             _logger.LogError(ex, "FetchJobs: run failed.");
-            await TryMarkFailedAsync(task, ex.Message);
+            if (task is not null)
+                await TryMarkFailedAsync(task, ex.Message);
             throw;
         }
         finally

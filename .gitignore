@@ -16,9 +16,10 @@ node_modules/
 dist/
 .angular/
 
-# Environment files
+# Environment files — .env.example is a safe template, deliberately not ignored
 .env
 .env.*
+!.env.example
 
 # OS
 .DS_Store
