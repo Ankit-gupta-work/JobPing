@@ -746,3 +746,50 @@ touched `AdzunaClient.cs`, `JSearchClient.cs`, `JobMappingService.cs`,
 `jobping-ui/package-lock.json` (regenerated). Back to Step 9 (Oracle
 deploy) once the user is ready, per their own stated sequencing
 ("before that" → source integration first, deploy after).
+
+## 2026-10-17 — Fixed real Vercel + Railway deployment bugs
+**Context:** User independently deployed outside this conversation since
+the last session (frontend → Vercel, backend → Railway, RabbitMQ → Railway's
+CloudAMQP add-on) — a different path than the Oracle Cloud plan this
+conversation had been building toward. Confirmed via `git log`: 4 new
+commits (`ade51a9` "final work" — the user's own commit of everything
+built across this whole conversation, `f395d19` CloudAMQP RabbitMQ URL
+support, `636ad83` backend URL update, `d179a60` vercel config added) that
+I did not make. Oracle deploy docs (`docs/DEPLOYMENT.md`) are now stale/
+unused — left in place but nothing currently points at them.
+
+User reported Vercel showing "This page doesn't exist" on every route.
+Found and fixed 3 real bugs, verified each locally before pushing:
+1. `jobping-ui/vercel.json` had a SPA rewrite rule but no
+   `outputDirectory` — Vercel's auto-detection couldn't find Angular 21's
+   actual build output (`dist/jobping-ui/browser`, confirmed via
+   `angular.json` having no `outputPath` override, so it's on the
+   framework default), which explains why even the root route failed,
+   not just direct navigation to sub-routes. Added `buildCommand` +
+   `outputDirectory` explicitly.
+2. `environment.prod.ts`'s `apiBaseUrl` was set to the bare Railway URL
+   with no `/api` suffix — every `*.service.ts` builds its endpoint as
+   `${apiBaseUrl}/auth` etc., and every controller route is under
+   `[Route("api/...")]`, so every API call would have 404'd even once
+   the frontend itself loaded correctly.
+3. CORS (`Program.cs`) was hardcoded to `http://localhost:4200` — made
+   sense under the original same-origin-via-nginx design, but Vercel and
+   Railway are different origins. Changed to read `Cors:AllowedOrigins`
+   (comma-separated) from config, defaulting to localhost so local dev
+   is unaffected.
+
+Verified all 3 locally before pushing: ran the real production build and
+confirmed `index.html` lands exactly at `dist/jobping-ui/browser/`, grepped
+the built JS bundle to confirm the corrected `/api`-suffixed URL is
+actually baked in, and did a full `dotnet build` of `JobPing.API` to
+confirm the CORS config change compiles. Committed (`c8f6efb`) and pushed
+to `origin/main`.
+
+**Next — one thing only the user can do:** set `Cors__AllowedOrigins` on
+Railway (double-underscore nested-config convention) to the real Vercel
+origin (e.g. `https://jobping-blush.vercel.app`) — without it, CORS
+defaults back to `localhost:4200` and the deployed frontend's API calls
+will still be blocked by the browser even though the URL/routing bugs are
+now fixed. Also worth deciding: is `docs/DEPLOYMENT.md` (Oracle Cloud)
+now dead documentation worth deleting, or keeping as a documented
+alternative path?

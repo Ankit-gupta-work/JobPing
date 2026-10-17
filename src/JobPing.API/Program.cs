@@ -40,15 +40,24 @@ if (runWebPipeline)
 // ---------------------------------------------------------------------
 // PostgreSQL (EF Core)
 // ---------------------------------------------------------------------
+// Railway (and most hosted Postgres) injects DATABASE_URL-style connection
+// info as a "postgresql://user:pass@host:port/db" URI — Npgsql's own
+// connection string parser only understands the ADO.NET
+// "Key=Value;Key=Value" format and throws ("Format of the initialization
+// string does not conform to specification...") if handed a raw URI.
+// Converts only when it looks like a URI; a normal ADO.NET string (local
+// dev, Docker Compose) passes through unchanged.
 builder.Services.AddDbContext<JobPingDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(ToNpgsqlConnectionString(builder.Configuration.GetConnectionString("DefaultConnection"))));
 
 // ---------------------------------------------------------------------
 // Redis (StackExchange.Redis)
 // ---------------------------------------------------------------------
+// Same URI-vs-ADO.NET mismatch as Postgres above, for Redis add-ons that
+// hand back "redis://default:pass@host:port" instead of "host:port".
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 {
-    var connectionString = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+    var connectionString = ToRedisConnectionString(builder.Configuration["Redis:ConnectionString"]) ?? "localhost:6379";
     var options = ConfigurationOptions.Parse(connectionString);
 
     var password = builder.Configuration["Redis:Password"];
@@ -236,3 +245,52 @@ if (runWebPipeline)
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
 app.Run();
+
+// ---------------------------------------------------------------------
+// Connection-string URI conversions — see the comments above each
+// registration that calls these for why they're needed.
+// ---------------------------------------------------------------------
+
+static string? ToNpgsqlConnectionString(string? raw)
+{
+    if (string.IsNullOrWhiteSpace(raw)) return raw;
+    if (!raw.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
+        !raw.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        return raw;
+
+    var uri = new Uri(raw);
+    var (username, password) = SplitUserInfo(uri.UserInfo);
+    var database = uri.AbsolutePath.TrimStart('/');
+
+    return $"Host={uri.Host};Port={uri.Port};Database={database};" +
+           $"Username={username};Password={password};" +
+           "SSL Mode=Require;Trust Server Certificate=true;";
+}
+
+static string? ToRedisConnectionString(string? raw)
+{
+    if (string.IsNullOrWhiteSpace(raw)) return raw;
+    if (!raw.StartsWith("redis://", StringComparison.OrdinalIgnoreCase) &&
+        !raw.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
+        return raw;
+
+    var uri = new Uri(raw);
+    var (_, password) = SplitUserInfo(uri.UserInfo);
+    var conn = $"{uri.Host}:{uri.Port}";
+    if (!string.IsNullOrEmpty(password))
+        conn += $",password={password}";
+    if (raw.StartsWith("rediss://", StringComparison.OrdinalIgnoreCase))
+        conn += ",ssl=true";
+    return conn;
+}
+
+// Splits "user:pass" on the FIRST colon only (a generated password can
+// itself contain one) and URL-decodes each part — connection URIs
+// percent-encode special characters in credentials.
+static (string Username, string Password) SplitUserInfo(string userInfo)
+{
+    var parts = userInfo.Split(':', 2);
+    var username = parts.Length > 0 ? Uri.UnescapeDataString(parts[0]) : "";
+    var password = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]) : "";
+    return (username, password);
+}
