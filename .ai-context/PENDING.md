@@ -104,3 +104,18 @@ new local setup should `cp .env.example .env` and fill in real values.
 - **`docker-compose.override.yml`** — named in CLAUDE.md's file tree but
   no content ever specified for it. Nothing concrete to build unless a
   real dev-vs-prod override need shows up (e.g. hot-reload mounts).
+
+## P1
+- **Light-theme "dull" fix + landing/login/register visual pass — done,
+  not visually verified.** All three pages rebuilt (landing: how-it-works
+  + CTA band + footer + hero animation/decoration; login: split-panel
+  layout; register: matching background decoration + per-step entrance
+  animation), light-theme tokens retuned for contrast, the invisible-chip
+  bug fixed at the CSS root cause (fixes every `.filter-chip` usage app-
+  wide), and a second real color bug found+fixed (MatSnackBar toasts were
+  hardcoded to dark-theme colors, so light-mode toasts looked broken).
+  `ng build` and the production build are both clean. None of this has
+  been seen in an actual browser yet — same long-standing P0 tooling gap
+  below. Next session (or the user) should screenshot/click through
+  landing, login, register, and the Preferences skill-chip selection
+  before calling this closed.

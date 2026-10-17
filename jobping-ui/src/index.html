@@ -6,6 +6,17 @@
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <script>
+    // Applied before Angular bootstraps / first paint, so the page never
+    // flashes the light theme first. Defaults to dark for first-time
+    // visitors (no localStorage entry) and otherwise respects whatever
+    // the user last picked via the theme toggle — same default and same
+    // storage key ThemeService uses, just run synchronously up front.
+    (function () {
+      var saved = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', saved);
+    })();
+  </script>
 </head>
 <body class="font-base">
   <app-root></app-root>

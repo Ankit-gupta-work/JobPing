@@ -5,17 +5,20 @@ import { JobCardComponent } from '../../../components/job-card/job-card.componen
 import { EmptyStateComponent } from '../../../components/empty-state/empty-state.component';
 import { LoadingSkeletonComponent } from '../../../components/loading-skeleton/loading-skeleton.component';
 import { IconComponent } from '../../../components/icon/icon.component';
+import { SwipeStackComponent } from '../../../components/swipe-stack/swipe-stack.component';
 import { JobService } from '../../../services/job.service';
 import { MasterDataService } from '../../../services/master-data.service';
 import { JobListItem, Location } from '../../../models';
 
 type Tab = 'all' | 'matches';
 
-const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
+const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link' | 'map-pin' | 'search'> = {
   All: 'globe',
   Remotive: 'globe',
   Arbeitnow: 'globe',
   WWR: 'rss',
+  Adzuna: 'map-pin',
+  JSearch: 'search',
 };
 
 @Component({
@@ -26,6 +29,7 @@ const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
     EmptyStateComponent,
     LoadingSkeletonComponent,
     IconComponent,
+    SwipeStackComponent,
   ],
   template: `
     <app-layout>
@@ -48,7 +52,7 @@ const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
         } @else if (matches().length === 0) {
           <app-empty-state
             title="No matches yet"
-            description="The matching engine ships in Step 6. Switch to the All Jobs tab above to browse everything indexed so far."
+            description="Add skills and locations in Preferences so the matching engine has something to score jobs against — or switch to All Jobs to browse everything indexed so far."
           >
             <app-icon icon name="target" [size]="20" />
           </app-empty-state>
@@ -62,7 +66,7 @@ const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
       } @else {
         <div class="jobs-layout">
           <!-- Mobile/tablet: horizontal filter bar -->
-          <div class="filter-mobile-bar">
+          <div class="filter-bar-mobile">
             @for (s of sources; track s) {
               <button class="filter-chip" [class.active]="currentSource() === s" (click)="setSource(s)">
                 {{ s }}
@@ -117,7 +121,7 @@ const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
             </div>
           </aside>
 
-          <section class="jobs-list">
+          <section class="jobs-main">
             <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
               @if (!loading()) {
                 <span style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
@@ -140,38 +144,36 @@ const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
                 <app-icon icon name="search" [size]="20" />
               </app-empty-state>
             } @else {
-              <div class="job-list">
+              <app-swipe-stack [jobs]="jobs()" (save)="toggleSave($event)" />
+
+              <div class="job-list job-list-desktop">
                 @for (job of jobs(); track job.id) {
                   <app-job-card [job]="job" (save)="toggleSave(job)" />
                 }
               </div>
 
-              <div class="pagination" style="margin-top: 16px;">
-                <div class="pagination-mobile">
-                  <button class="btn btn-secondary" [disabled]="page() <= 1" (click)="prevPage()">
-                    <app-icon name="chevron-left" [size]="14" /> Prev
-                  </button>
-                  <span class="pagination-info">{{ page() }} / {{ totalPages() || 1 }}</span>
-                  <button class="btn btn-secondary" [disabled]="page() >= totalPages()" (click)="nextPage()">
-                    Next <app-icon name="chevron-right" [size]="14" />
-                  </button>
-                </div>
+              <div class="pagination-simple">
+                <button class="btn btn-secondary" [disabled]="page() <= 1" (click)="prevPage()">
+                  <app-icon name="chevron-left" [size]="14" /> Prev
+                </button>
+                <span class="pagination-info">{{ page() }} / {{ totalPages() || 1 }}</span>
+                <button class="btn btn-secondary" [disabled]="page() >= totalPages()" (click)="nextPage()">
+                  Next <app-icon name="chevron-right" [size]="14" />
+                </button>
+              </div>
 
-                <div class="pagination-desktop">
-                  <button class="btn btn-secondary" [disabled]="page() <= 1" (click)="prevPage()">
-                    <app-icon name="chevron-left" [size]="14" /> Prev
+              <div class="pagination-full">
+                <button class="btn btn-secondary" [disabled]="page() <= 1" (click)="prevPage()">
+                  <app-icon name="chevron-left" [size]="14" /> Prev
+                </button>
+                @for (p of pageNumbers(); track p) {
+                  <button class="page-btn" [class.active]="p === page()" (click)="goToPage(p)">
+                    {{ p }}
                   </button>
-                  <div class="pagination-pages">
-                    @for (p of pageNumbers(); track p) {
-                      <button class="pagination-page-btn" [class.active]="p === page()" (click)="goToPage(p)">
-                        {{ p }}
-                      </button>
-                    }
-                  </div>
-                  <button class="btn btn-secondary" [disabled]="page() >= totalPages()" (click)="nextPage()">
-                    Next <app-icon name="chevron-right" [size]="14" />
-                  </button>
-                </div>
+                }
+                <button class="btn btn-secondary" [disabled]="page() >= totalPages()" (click)="nextPage()">
+                  Next <app-icon name="chevron-right" [size]="14" />
+                </button>
               </div>
             }
           </section>
@@ -179,14 +181,14 @@ const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
       }
 
       <!-- Mobile filter bottom sheet -->
-      <div class="bottom-sheet-overlay" [class.open]="filterSheetOpen()" (click)="closeFilterSheet()"></div>
+      <div class="sheet-overlay" [class.open]="filterSheetOpen()" (click)="closeFilterSheet()"></div>
       <div class="bottom-sheet" [class.open]="filterSheetOpen()">
-        <div class="bottom-sheet-handle"></div>
-        <div class="bottom-sheet-header">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
           <span class="section-title">Filters</span>
           <button class="btn btn-ghost btn-sm" (click)="clearFilters()">Clear all</button>
         </div>
-        <div class="bottom-sheet-body">
+        <div class="sheet-body">
           <div class="filter-group">
             <p class="filter-label">Source</p>
             <div class="filter-chips">
@@ -222,7 +224,7 @@ const SOURCE_ICONS: Record<string, 'globe' | 'rss' | 'external-link'> = {
             </div>
           </div>
         </div>
-        <div class="bottom-sheet-footer">
+        <div class="sheet-footer">
           <button class="btn btn-primary" style="width: 100%;" (click)="closeFilterSheet()">
             Show {{ total() }} results
           </button>
@@ -236,7 +238,7 @@ export class JobsListComponent implements OnInit {
   private readonly jobService = inject(JobService);
   private readonly masterData = inject(MasterDataService);
 
-  readonly sources = ['All', 'Remotive', 'Arbeitnow', 'WWR'];
+  readonly sources = ['All', 'Remotive', 'Arbeitnow', 'WWR', 'Adzuna', 'JSearch'];
 
   readonly tab = signal<Tab>('all');
   readonly matches = signal<JobListItem[]>([]);
@@ -276,7 +278,7 @@ export class JobsListComponent implements OnInit {
     this.tab.set(t);
   }
 
-  sourceIcon(s: string): 'globe' | 'rss' | 'external-link' {
+  sourceIcon(s: string): 'globe' | 'rss' | 'external-link' | 'map-pin' | 'search' {
     return SOURCE_ICONS[s] ?? 'globe';
   }
 

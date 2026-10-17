@@ -16,17 +16,20 @@ import { Experience, Location, Skill } from '../../../models';
   selector: 'app-register',
   imports: [ReactiveFormsModule, RouterLink, MatProgressSpinnerModule, MatTooltipModule, IconComponent],
   template: `
-    <div style="min-height: 100vh; background: var(--bg-page); position: relative;">
+    <div class="register-shell">
+      <div class="auth-glow auth-glow-a"></div>
+      <div class="auth-glow auth-glow-b"></div>
+
       <button
         class="icon-btn"
         (click)="theme.toggle()"
-        style="position: absolute; top: 16px; right: 16px;"
+        style="position: absolute; top: 16px; right: 16px; z-index: 2;"
         [title]="theme.theme() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
       >
         <app-icon [name]="theme.theme() === 'dark' ? 'sun' : 'moon'" [size]="16" />
       </button>
 
-      <div style="max-width: 560px; margin: 0 auto; padding: 40px 24px;">
+      <div class="register-wrap">
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 32px;">
           <span class="topnav-logo-mark">
             <span style="color: white; font-family: var(--font-mono); font-size: 11px; font-weight: 700;">JP</span>
@@ -34,22 +37,23 @@ import { Experience, Location, Skill } from '../../../models';
           <span style="font-weight: 600; font-size: 15px; color: var(--text-primary);">JobPing</span>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px;">
-          @for (s of steps; track s; let i = $index) {
-            <div
-              style="flex: 1; height: 4px; border-radius: 99px; transition: background 150ms;"
-              [style.background]="i <= step() ? 'var(--accent)' : 'var(--bg-elevated)'"
-            ></div>
-          }
-        </div>
+        <div class="card register-card">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 24px;">
+            @for (s of steps; track s; let i = $index) {
+              <div
+                style="flex: 1; height: 4px; border-radius: 99px; transition: background 250ms var(--ease-out);"
+                [style.background]="i <= step() ? 'var(--accent)' : 'var(--bg-elevated)'"
+              ></div>
+            }
+          </div>
 
-        <p style="font-family: var(--font-mono); font-size: 12px; color: var(--accent); margin-bottom: 4px;">
-          Step {{ step() + 1 }} / 4 — {{ steps[step()] }}
-        </p>
+          <p style="font-family: var(--font-mono); font-size: 12px; color: var(--accent); margin-bottom: 4px;">
+            Step {{ step() + 1 }} / 4 — {{ steps[step()] }}
+          </p>
 
-        <!-- ================= STEP 0: ACCOUNT ================= -->
-        @if (step() === 0) {
-          <div>
+          <!-- ================= STEP 0: ACCOUNT ================= -->
+          @if (step() === 0) {
+          <div class="step-panel">
             <h2 style="font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 8px 0 20px;">Create your account</h2>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
@@ -95,9 +99,9 @@ import { Experience, Location, Skill } from '../../../models';
           </div>
         }
 
-        <!-- ================= STEP 1: SKILLS ================= -->
-        @if (step() === 1) {
-          <div>
+          <!-- ================= STEP 1: SKILLS ================= -->
+          @if (step() === 1) {
+          <div class="step-panel">
             <h2 style="font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 8px 0 2px;">Pick your skills</h2>
             <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">We match jobs against these.</p>
 
@@ -121,9 +125,9 @@ import { Experience, Location, Skill } from '../../../models';
           </div>
         }
 
-        <!-- ================= STEP 2: PREFERENCES ================= -->
-        @if (step() === 2) {
-          <div>
+          <!-- ================= STEP 2: PREFERENCES ================= -->
+          @if (step() === 2) {
+          <div class="step-panel">
             <h2 style="font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 8px 0 20px;">Your preferences</h2>
 
             @if (loadingMeta()) {
@@ -188,9 +192,9 @@ import { Experience, Location, Skill } from '../../../models';
           </div>
         }
 
-        <!-- ================= STEP 3: NOTIFICATIONS ================= -->
-        @if (step() === 3) {
-          <div>
+          <!-- ================= STEP 3: NOTIFICATIONS ================= -->
+          @if (step() === 3) {
+          <div class="step-panel">
             <h2 style="font-size: 20px; font-weight: 600; color: var(--text-primary); margin: 8px 0 2px;">Alert frequency</h2>
             <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px;">How often should we email you matches?</p>
 
@@ -222,10 +226,41 @@ import { Experience, Location, Skill } from '../../../models';
               </button>
             </div>
           </div>
-        }
+          }
+        </div>
       </div>
     </div>
   `,
+  styles: [`
+    .register-shell {
+      min-height: 100vh;
+      background: var(--bg-page);
+      position: relative;
+      overflow-x: hidden;
+    }
+    .auth-glow { position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; opacity: 0.4; z-index: 0; }
+    .auth-glow-a { width: 420px; height: 420px; top: -160px; left: -140px; background: radial-gradient(circle, var(--accent-light), transparent 70%); }
+    .auth-glow-b { width: 380px; height: 380px; top: 200px; right: -160px; background: radial-gradient(circle, var(--accent), transparent 70%); opacity: 0.25; }
+    [data-theme="dark"] .auth-glow { opacity: 0.2; }
+
+    .register-wrap { position: relative; z-index: 1; max-width: 560px; margin: 0 auto; padding: 40px 24px 64px; }
+    .register-card { box-shadow: var(--shadow-md); animation: registerCardIn 0.5s var(--ease-out) both; }
+
+    .step-panel { animation: stepIn 0.35s var(--ease-out) both; }
+
+    @keyframes registerCardIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes stepIn {
+      from { opacity: 0; transform: translateX(10px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .register-card, .step-panel { opacity: 1; animation: none; }
+    }
+  `],
 })
 export class RegisterComponent implements OnInit {
   private readonly fb = inject(FormBuilder);

@@ -121,3 +121,46 @@ Replaced with a boundary-aware scan: a match only counts if the characters
 immediately before/after aren't alphanumeric, so embedded matches
 ("Java" in "JavaScript") are rejected while punctuation-adjacent skill
 names (".NET Core", "Node.js", "CI/CD") still match normally.
+
+**2026-09-26 — Re-rejected `lucide-angular`/`@lucide/angular` a second
+time.** A pasted "Master UI Prompt" spec re-asked for it by name (its
+author apparently didn't know the icon system had already been swapped
+out earlier this project for the same bundle-size reason — see the
+~14.8MB lazy-chunk finding from an earlier session). Declined again and
+extended the existing hand-built `IconComponent` instead (added
+`refresh-cw`, `zap`, `arrow-left`, `arrow-right`). Production build
+confirmed clean at the same bundle sizes as before this session's changes.
+
+**2026-09-26 — "Live Terminal" widget shows real derived state, not the
+spec's scripted fake log lines.** The pasted spec's PART 5 described a
+terminal-style widget that types out fabricated worker events on a timer
+(fake "found 3 new jobs" / "sent 2 alerts" lines with made-up timestamps).
+Built `WorkerTerminalComponent` instead: three real lines (last sync time
+from the most recently fetched job, real `totalJobs` count, real alerts-
+sent count from `GET /api/alerts`), no animation of invented events. Same
+"never fake data" standing policy applied throughout this project.
+
+**2026-09-26 — Live Match Preview (Preferences page) uses real
+`GET /api/jobs/matches` calls, not the spec's client-side approximation.**
+The spec's PART 6 sketched a `cachedJobs`/`skillIds` client-side re-scoring
+function to avoid a network round-trip per toggle — but it referenced
+fields that don't exist on the real `JobListItem` model (it only has
+`skills: string[]` names, no numeric `skillIds`), so it would not have
+compiled against the real API shape. Built a debounced (400ms)
+`Subject`-based pipeline instead: after a skill/location toggle's save
+call succeeds, refetch real matches and show the count with a delta
+indicator. One real caveat worth knowing: `GET /api/jobs/matches` is
+capped at the matching engine's internal top-N limit (20), so the banner
+undercounts once a user's true match count exceeds that — same cap the
+dashboard's "New matches" stat already lives with elsewhere in the app.
+
+**2026-09-26 — Mobile swipe cards (Jobs List) adapted to real actions
+only.** The spec's PART 7 didn't distinguish "dismiss" from "save" at the
+API level. Built `SwipeStackComponent` so swipe-right calls the real
+`saveJob` API (same as the existing heart-button toggle), while swipe-left
+is explicitly client-side-only — it removes the card from the in-memory
+stack for this page load and touches no backend, since there is no
+"dismiss"/"not interested" concept in the schema. Documented as a code
+comment nowhere; noting it here instead since it's a real scope boundary
+a future session should know about before assuming swipe-left persists
+anything.

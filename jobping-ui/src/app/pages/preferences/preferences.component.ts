@@ -1,9 +1,11 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subject, debounceTime, switchMap, catchError, of } from 'rxjs';
 import { AppLayoutComponent } from '../../components/app-layout/app-layout.component';
 import { LoadingSkeletonComponent } from '../../components/loading-skeleton/loading-skeleton.component';
 import { PreferenceService } from '../../services/preference.service';
 import { MasterDataService } from '../../services/master-data.service';
+import { JobService } from '../../services/job.service';
 import { Experience, Location, Skill, UserPreferenceResponse } from '../../models';
 
 type Tab = 'skills' | 'locations' | 'salary' | 'notifications';
@@ -32,6 +34,20 @@ const MATCH_OPTIONS = [50, 60, 70, 80, 90];
           }
         </div>
       } @else {
+        @if (tab() === 'skills' || tab() === 'locations') {
+          @if (previewCount() !== null) {
+            <div class="match-preview-banner">
+              <span class="match-preview-count">{{ previewLoading() ? '…' : previewCount() }}</span>
+              <span class="match-preview-label">matching job{{ previewCount() === 1 ? '' : 's' }} right now</span>
+              @if (!previewLoading() && previewDelta() !== null && previewDelta() !== 0) {
+                <span class="match-preview-change" [class.up]="previewDelta()! > 0" [class.down]="previewDelta()! < 0">
+                  {{ previewDelta()! > 0 ? '+' : '' }}{{ previewDelta() }}
+                </span>
+              }
+            </div>
+          }
+        }
+
         @switch (tab()) {
           @case ('skills') {
             <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">
@@ -157,6 +173,7 @@ const MATCH_OPTIONS = [50, 60, 70, 80, 90];
 export class PreferencesComponent implements OnInit {
   private readonly preferenceService = inject(PreferenceService);
   private readonly masterData = inject(MasterDataService);
+  private readonly jobService = inject(JobService);
 
   readonly tabs: { id: Tab; label: string }[] = [
     { id: 'skills', label: 'Skills' },
@@ -186,15 +203,39 @@ export class PreferencesComponent implements OnInit {
 
   private isRemoteOnly = false;
 
+  readonly previewCount = signal<number | null>(null);
+  readonly previewLoading = signal(false);
+  readonly previewDelta = signal<number | null>(null);
+  private readonly previewTrigger$ = new Subject<void>();
+
   ngOnInit(): void {
     this.masterData.getSkills().subscribe((s) => this.allSkills.set(s));
     this.masterData.getLocations().subscribe((l) => this.allLocations.set(l));
     this.masterData.getExperiences().subscribe((e) => this.allExperiences.set(e));
 
     this.preferenceService.getPreferences().subscribe({
-      next: (prefs) => this.applyPreferences(prefs),
+      next: (prefs) => {
+        this.applyPreferences(prefs);
+        this.previewTrigger$.next();
+      },
       error: () => this.loading.set(false),
     });
+
+    this.previewTrigger$
+      .pipe(
+        debounceTime(400),
+        switchMap(() => {
+          this.previewLoading.set(true);
+          return this.jobService.getJobMatches().pipe(catchError(() => of(null)));
+        }),
+      )
+      .subscribe((jobs) => {
+        this.previewLoading.set(false);
+        if (jobs === null) return;
+        const prev = this.previewCount();
+        this.previewCount.set(jobs.length);
+        this.previewDelta.set(prev === null ? null : jobs.length - prev);
+      });
   }
 
   private applyPreferences(prefs: UserPreferenceResponse): void {
@@ -219,6 +260,7 @@ export class PreferencesComponent implements OnInit {
       ? this.preferenceService.removeSkill(skill.id)
       : this.preferenceService.addSkill(skill.id);
     call.subscribe({
+      next: () => this.previewTrigger$.next(),
       error: () => {
         const reverted = new Set(this.selectedSkillIds());
         wasSelected ? reverted.add(skill.id) : reverted.delete(skill.id);
@@ -237,6 +279,7 @@ export class PreferencesComponent implements OnInit {
       ? this.preferenceService.removeLocation(loc.id)
       : this.preferenceService.addLocation(loc.id);
     call.subscribe({
+      next: () => this.previewTrigger$.next(),
       error: () => {
         const reverted = new Set(this.selectedLocationIds());
         wasSelected ? reverted.add(loc.id) : reverted.delete(loc.id);

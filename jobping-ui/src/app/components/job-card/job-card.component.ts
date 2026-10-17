@@ -4,13 +4,18 @@ import { JobListItem } from '../../models';
 import { timeAgo } from '../../utils/time-ago';
 import { MatchBadgeComponent } from '../match-badge/match-badge.component';
 import { IconComponent } from '../icon/icon.component';
+import { MatchRingComponent } from '../match-ring/match-ring.component';
 
 @Component({
   selector: 'app-job-card',
-  imports: [RouterLink, IconComponent, MatchBadgeComponent],
+  imports: [RouterLink, IconComponent, MatchBadgeComponent, MatchRingComponent],
   template: `
     <div class="job-card" style="cursor: default;">
-      <div class="job-logo">{{ initials(job.company) }}</div>
+      @if (showMatchBar && job.matchPercentage != null) {
+        <app-match-ring [score]="job.matchPercentage" [size]="38" />
+      } @else {
+        <div class="job-logo">{{ initials(job.company) }}</div>
+      }
 
       <div class="job-body">
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
@@ -43,10 +48,6 @@ import { IconComponent } from '../icon/icon.component';
               <span class="tag">+{{ job.skills.length - 6 }}</span>
             }
           </div>
-        }
-
-        @if (showMatchBar && job.matchPercentage != null) {
-          <div class="match-bar"><div class="match-bar-fill" [style.width.%]="job.matchPercentage"></div></div>
         }
 
         <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px;">

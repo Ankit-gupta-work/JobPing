@@ -1,0 +1,48 @@
+# HTTP-only bootstrap config — this is the ACTIVE template (copied into the
+# image by nginx/Dockerfile). Use this to get the app live on plain HTTP
+# first, both for local dev (DOMAIN=localhost) and for the very first deploy
+# to a real server, BEFORE a TLS certificate exists.
+#
+# ${DOMAIN} is substituted at container startup by nginx:alpine's built-in
+# envsubst entrypoint (see nginx.conf) from the DOMAIN env var — set in
+# docker-compose.yml, sourced from .env. Defaults to "localhost" if unset.
+#
+# Once you've issued a real cert (see docs/DEPLOYMENT.md "Get a TLS
+# certificate"), replace the contents of THIS file with the HTTPS version
+# from that doc and redeploy — don't run both a plain-HTTP-only config and
+# an HTTPS one at the same time, the second `server {}` block below is
+# meant to fully replace this file's single block, not sit alongside it.
+
+upstream api {
+  server api:80;
+}
+
+server {
+  listen 80;
+  server_name ${DOMAIN};
+
+  # Let's Encrypt HTTP-01 challenge — certbot writes its proof file here.
+  # Keep this location working even after moving to HTTPS (see the TLS
+  # version of this file in docs/DEPLOYMENT.md), so certificate renewal
+  # keeps working without downtime.
+  location /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+
+  location /api/ {
+    proxy_pass http://api;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location /health {
+    proxy_pass http://api;
+  }
+
+  location / {
+    root /usr/share/nginx/html;
+    try_files $uri $uri/ /index.html;
+  }
+}

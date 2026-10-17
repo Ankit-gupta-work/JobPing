@@ -4,6 +4,7 @@ import { AuthService } from '../../services/auth.service';
 import { ThemeService } from '../../services/theme.service';
 import { NotificationDropdownComponent } from '../notification-dropdown/notification-dropdown.component';
 import { IconComponent, IconName } from '../icon/icon.component';
+import { CommandPaletteComponent } from '../command-palette/command-palette.component';
 
 interface NavItem {
   label: string;
@@ -22,7 +23,7 @@ const NAV_ITEMS: NavItem[] = [
 
 @Component({
   selector: 'app-layout',
-  imports: [RouterLink, RouterLinkActive, NotificationDropdownComponent, IconComponent],
+  imports: [RouterLink, RouterLinkActive, NotificationDropdownComponent, IconComponent, CommandPaletteComponent],
   template: `
     <div class="app-shell">
       <header class="topnav">
@@ -33,11 +34,12 @@ const NAV_ITEMS: NavItem[] = [
           <span class="hidden sm:inline">JobPing</span>
         </a>
 
-        <div class="topnav-search" title="Search is coming soon">
+        <div class="topnav-search" (click)="palette.show()">
           <app-icon name="search" [size]="14" />
-          Search job title, company, skills…
+          Search pages or actions…
+          <span class="kbd">⌘K</span>
         </div>
-        <button class="icon-btn topnav-search-btn" title="Search is coming soon" aria-label="Search">
+        <button class="icon-btn topnav-search-btn" (click)="palette.show()" aria-label="Search">
           <app-icon name="search" [size]="16" />
         </button>
 
@@ -82,6 +84,8 @@ const NAV_ITEMS: NavItem[] = [
           </a>
         }
       </nav>
+
+      <app-command-palette #palette />
     </div>
   `,
 })

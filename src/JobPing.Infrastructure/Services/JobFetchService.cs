@@ -16,10 +16,15 @@ public class JobFetchService : IJobFetchService
     private readonly JobPingDbContext _db;
     private readonly ICacheService _cache;
     private readonly IMessagePublisher _publisher;
+    private const string JSearchDailyGateKey = "gate:jsearch-daily";
+    private static readonly TimeSpan JSearchGateTtl = TimeSpan.FromHours(24);
+
     private readonly JobMappingService _mapper;
     private readonly RemotiveClient _remotive;
     private readonly ArbeitnowClient _arbeitnow;
     private readonly WWRRssClient _wwr;
+    private readonly AdzunaClient _adzuna;
+    private readonly JSearchClient _jsearch;
     private readonly ILogger<JobFetchService> _logger;
 
     public JobFetchService(
@@ -30,6 +35,8 @@ public class JobFetchService : IJobFetchService
         RemotiveClient remotive,
         ArbeitnowClient arbeitnow,
         WWRRssClient wwr,
+        AdzunaClient adzuna,
+        JSearchClient jsearch,
         ILogger<JobFetchService> logger)
     {
         _db = db;
@@ -39,6 +46,8 @@ public class JobFetchService : IJobFetchService
         _remotive = remotive;
         _arbeitnow = arbeitnow;
         _wwr = wwr;
+        _adzuna = adzuna;
+        _jsearch = jsearch;
         _logger = logger;
     }
 
@@ -89,6 +98,31 @@ public class JobFetchService : IJobFetchService
             var wwr = await _wwr.FetchJobsAsync(cancellationToken);
             totalNew += await SaveNewJobsAsync(
                 "WWR", wwr.Select(_mapper.MapWWRJob).ToList(), skills, cancellationToken);
+
+            // Adzuna — Indian market. No per-source try/catch needed: like every
+            // other client, AdzunaClient already swallows its own failures and
+            // returns an empty list, so one source being down never aborts the
+            // sources after it in this list.
+            var adzuna = await _adzuna.FetchAllIndianTechJobsAsync(cancellationToken);
+            totalNew += await SaveNewJobsAsync(
+                "Adzuna", adzuna.Select(_mapper.MapAdzunaJob).ToList(), skills, cancellationToken);
+
+            // JSearch (RapidAPI) — gated to once per 24h. The worker runs every
+            // 2 hours; calling JSearch on every tick would burn its 500/month
+            // free-tier quota in under a week (12 runs/day x 5 queries = 1,800/mo).
+            // Gating to once/day keeps it at ~150/month.
+            var jsearchAlreadyRanToday = await _cache.GetAsync<bool>(JSearchDailyGateKey);
+            if (!jsearchAlreadyRanToday)
+            {
+                var jsearch = await _jsearch.FetchAllIndianTechJobsAsync(cancellationToken);
+                totalNew += await SaveNewJobsAsync(
+                    "JSearch", jsearch.Select(_mapper.MapJSearchJob).ToList(), skills, cancellationToken);
+                await _cache.SetAsync(JSearchDailyGateKey, true, JSearchGateTtl);
+            }
+            else
+            {
+                _logger.LogInformation("FetchJobs[JSearch]: skipped — already ran within the last 24h.");
+            }
 
             // (h) Invalidate cached job lists.
             await _cache.RemoveByPatternAsync("jobs:list:*");

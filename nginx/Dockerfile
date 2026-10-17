@@ -17,5 +17,9 @@ FROM nginx:alpine
 # Angular 21's application builder outputs to dist/<project>/browser, not dist/<project>.
 COPY --from=build /app/dist/jobping-ui/browser /usr/share/nginx/html
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
+# Server blocks live here, not in nginx.conf directly — the official image's
+# entrypoint envsubst's these into /etc/nginx/conf.d/ at container startup,
+# which is how ${DOMAIN} gets filled in without a custom entrypoint script.
+COPY nginx/templates/ /etc/nginx/templates/
 
-EXPOSE 80
+EXPOSE 80 443

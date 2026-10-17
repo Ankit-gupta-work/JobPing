@@ -20,6 +20,9 @@ services:
       - RabbitMQ__Username=${RABBITMQ_USER}
       - RabbitMQ__Password=${RABBITMQ_PASSWORD}
       - SendGrid__ApiKey=${SENDGRID_API_KEY}
+      - Adzuna__AppId=${ADZUNA_APP_ID}
+      - Adzuna__AppKey=${ADZUNA_APP_KEY}
+      - JSearch__ApiKey=${JSEARCH_API_KEY}
     depends_on:
       db:
         condition: service_healthy
@@ -45,6 +48,9 @@ services:
       - RabbitMQ__Username=${RABBITMQ_USER}
       - RabbitMQ__Password=${RABBITMQ_PASSWORD}
       - SendGrid__ApiKey=${SENDGRID_API_KEY}
+      - Adzuna__AppId=${ADZUNA_APP_ID}
+      - Adzuna__AppKey=${ADZUNA_APP_KEY}
+      - JSearch__ApiKey=${JSEARCH_API_KEY}
     depends_on:
       db:
         condition: service_healthy
@@ -63,9 +69,14 @@ services:
     ports:
       # Host access for running `dotnet ef database update` (Production never
       # auto-migrates — see Program.cs). Non-standard host port so it doesn't
-      # collide with a local native Postgres install. Consider dropping this
-      # mapping entirely once actually deployed (Step 9) — no reason to expose
-      # the DB port to the host on a real server.
+      # collide with a local native Postgres install.
+      #
+      # PRODUCTION WARNING: this maps the port on the HOST, but the host is a
+      # real public server once deployed (Step 9). Binding here is harmless
+      # BY ITSELF only as long as you never open 5433 in the cloud firewall
+      # (Oracle Cloud: the VCN Security List) — see docs/DEPLOYMENT.md. Do
+      # not add a security-list rule for this port. Same goes for RabbitMQ's
+      # 15672 below.
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -94,7 +105,11 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     ports:
-      - "15672:15672"  # Management UI — only in dev
+      # Management UI — dev convenience only. Same production warning as
+      # db's port above: fine bound to the host, just never open 15672 in
+      # the cloud firewall. Use an SSH tunnel if you need this UI on a
+      # real server (`ssh -L 15672:localhost:15672 you@server`).
+      - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -110,11 +125,34 @@ services:
       dockerfile: nginx/Dockerfile
     ports:
       - "80:80"
+      - "443:443"
+    environment:
+      # Falls back to localhost for local `docker compose up` — only needs
+      # to be the real domain in the deployed .env. Also used by nginx's
+      # server_name once you swap in the HTTPS template (see
+      # docs/DEPLOYMENT.md).
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt:ro
     depends_on:
       - api
     restart: unless-stopped
+
+  # Issues and renews the Let's Encrypt certificate. Not started by `docker
+  # compose up -d` on its own (no long-running command below) — it's run
+  # on demand via `docker compose run --rm certbot ...`, see
+  # docs/DEPLOYMENT.md "Get a TLS certificate". Renewal is a cron job on
+  # the host calling the same image, documented there too.
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
 
 volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+  certbot_www:
+  certbot_conf:

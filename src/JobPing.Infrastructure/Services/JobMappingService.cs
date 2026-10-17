@@ -48,6 +48,56 @@ public class JobMappingService
         IsRemote = true, // WWR is remote-only
     };
 
+    public Job MapAdzunaJob(AdzunaJob j) => new()
+    {
+        ExternalId = TruncReq(j.Id, 200),
+        Source = "Adzuna",
+        SourceUrl = j.RedirectUrl,
+        Title = TruncReq(EmptyTo(j.Title, "Untitled"), 300),
+        Company = TruncReq(EmptyTo(j.Company.DisplayName, "Unknown"), 200),
+        Description = j.Description,
+        JobType = Trunc(j.ContractTime switch
+        {
+            "full_time" => "Full-time",
+            "part_time" => "Part-time",
+            "contract" => "Contract",
+            _ => null,
+        }, 50),
+        // Adzuna's location.area is broad→specific, e.g. ["India", "Karnataka", "Bangalore"] —
+        // the last element is the most specific place name; fall back to display_name if
+        // area is too short to have a specific entry.
+        Location = Trunc(j.Location.Area.Count >= 3 ? j.Location.Area[^1] : j.Location.DisplayName, 200),
+        IsRemote = j.Location.DisplayName.Contains("remote", StringComparison.OrdinalIgnoreCase),
+        MinSalary = j.SalaryMin,
+        MaxSalary = j.SalaryMax,
+    };
+
+    public Job MapJSearchJob(JSearchJob j) => new()
+    {
+        ExternalId = TruncReq(j.JobId, 200),
+        Source = "JSearch",
+        SourceUrl = j.JobApplyLink,
+        Title = TruncReq(EmptyTo(j.JobTitle, "Untitled"), 300),
+        Company = TruncReq(EmptyTo(j.EmployerName, "Unknown"), 200),
+        Description = j.JobDescription,
+        // search-v2 sends a human-readable string ("Full-time", "Contractor") rather
+        // than the uppercase enum ("FULLTIME") the older API docs describe — confirmed
+        // live. Matched case-insensitively since exact casing for every variant
+        // (e.g. part-time, internship) hasn't been observed directly.
+        JobType = Trunc(j.JobEmploymentType?.ToLowerInvariant() switch
+        {
+            "full-time" or "fulltime" => "Full-time",
+            "part-time" or "parttime" => "Part-time",
+            "contractor" or "contract" => "Contract",
+            "intern" or "internship" => "Internship",
+            _ => j.JobEmploymentType,
+        }, 50),
+        Location = Trunc(EmptyTo(j.JobCity, j.JobCountry ?? "Unknown"), 200),
+        IsRemote = j.JobIsRemote,
+        MinSalary = j.JobMinSalary,
+        MaxSalary = j.JobMaxSalary,
+    };
+
     private static string EmptyTo(string? value, string fallback) =>
         string.IsNullOrWhiteSpace(value) ? fallback : value;
 

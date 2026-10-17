@@ -91,6 +91,16 @@ builder.Services.AddHttpClient<WWRRssClient>(c =>
     c.BaseAddress = new Uri("https://weworkremotely.com/");
     c.Timeout = TimeSpan.FromSeconds(30);
 });
+builder.Services.AddHttpClient<AdzunaClient>(c =>
+{
+    c.BaseAddress = new Uri("https://api.adzuna.com/");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddHttpClient<JSearchClient>(c =>
+{
+    c.BaseAddress = new Uri("https://jsearch.p.rapidapi.com/");
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
 
 builder.Services.AddSingleton<JobMappingService>();
 builder.Services.AddSingleton<IMessagePublisher, RabbitMQPublisher>();

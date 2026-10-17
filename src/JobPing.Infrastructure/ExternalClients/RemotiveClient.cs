@@ -14,7 +14,7 @@ public class RemotiveResponse
 public class RemotiveJob
 {
     [JsonPropertyName("id")] public long Id { get; set; }
-    [JsonPropertyName("url")] public string? Url { get; set; }
+    [JsonPropertyName("url")] public string? Url { get; set; } 
     [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
     [JsonPropertyName("company_name")] public string CompanyName { get; set; } = string.Empty;
     [JsonPropertyName("description")] public string? Description { get; set; }

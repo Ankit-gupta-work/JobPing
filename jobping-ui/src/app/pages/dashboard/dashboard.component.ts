@@ -6,8 +6,10 @@ import { StatCardComponent } from '../../components/stat-card/stat-card.componen
 import { EmptyStateComponent } from '../../components/empty-state/empty-state.component';
 import { LoadingSkeletonComponent } from '../../components/loading-skeleton/loading-skeleton.component';
 import { IconComponent } from '../../components/icon/icon.component';
+import { WorkerTerminalComponent } from '../../components/worker-terminal/worker-terminal.component';
 import { AuthService } from '../../services/auth.service';
 import { JobService } from '../../services/job.service';
+import { AlertService } from '../../services/alert.service';
 import { JobListItem } from '../../models';
 import { timeAgo } from '../../utils/time-ago';
 
@@ -21,6 +23,7 @@ import { timeAgo } from '../../utils/time-ago';
     EmptyStateComponent,
     LoadingSkeletonComponent,
     IconComponent,
+    WorkerTerminalComponent,
   ],
   template: `
     <app-layout>
@@ -43,22 +46,21 @@ import { timeAgo } from '../../utils/time-ago';
           <app-stat-card label="Jobs indexed" [value]="totalJobs()">
             <app-icon icon name="briefcase" [size]="13" />
           </app-stat-card>
-          <app-stat-card label="Alerts sent" value="—" trend="Ships with Step 7">
+          <app-stat-card label="Alerts sent" [value]="alertsSent()">
             <app-icon icon name="mail" [size]="13" />
           </app-stat-card>
-          <app-stat-card label="Match rate" value="—" trend="Ships with Step 6">
+          <app-stat-card label="Avg match score" [value]="avgMatchScore() != null ? avgMatchScore() + '%' : '—'">
             <app-icon icon name="bar-chart-2" [size]="13" />
           </app-stat-card>
         </div>
 
-        @if (lastUpdated()) {
-          <div class="worker-bar">
-            <span class="status-dot pulse"></span>
-            Jobs last synced {{ lastUpdated() }}
-            <span class="worker-bar-divider"></span>
-            Fetch worker runs every 2h
-          </div>
-        }
+        <div style="margin-top: 16px;">
+          <app-worker-terminal
+            [lastSyncLabel]="lastUpdated()"
+            [jobsIndexed]="totalJobs()"
+            [alertsSent]="alertsSent()"
+          />
+        </div>
       }
 
       <div style="margin-top: 8px;">
@@ -78,7 +80,7 @@ import { timeAgo } from '../../utils/time-ago';
         } @else if (matches().length === 0) {
           <app-empty-state
             title="No matches yet"
-            description="The matching engine ships in Step 6. Set your skills and preferences now so matches are ready the moment it lands."
+            description="Add skills and locations in Preferences so the matching engine has something to score jobs against."
             actionLabel="Set preferences"
             actionRoute="/preferences"
           >
@@ -128,12 +130,22 @@ import { timeAgo } from '../../utils/time-ago';
 export class DashboardComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly jobService = inject(JobService);
+  private readonly alertService = inject(AlertService);
 
   readonly loading = signal(true);
   readonly totalJobs = signal(0);
   readonly recent = signal<JobListItem[]>([]);
   readonly matches = signal<JobListItem[]>([]);
   readonly lastUpdated = signal<string>('');
+  readonly alertsSent = signal(0);
+
+  avgMatchScore(): number | null {
+    const scores = this.matches()
+      .map((j) => j.matchPercentage)
+      .filter((s): s is number => s != null);
+    if (!scores.length) return null;
+    return Math.round(scores.reduce((sum, s) => sum + s, 0) / scores.length);
+  }
 
   get firstName(): string {
     return this.auth.getCurrentUser()?.fullName?.split(/\s+/)[0] ?? '';
@@ -159,6 +171,10 @@ export class DashboardComponent implements OnInit {
     this.jobService.getJobMatches().subscribe({
       next: (jobs) => this.matches.set(jobs.slice(0, 5)),
       error: () => this.matches.set([]),
+    });
+    this.alertService.getAlerts().subscribe({
+      next: (alerts) => this.alertsSent.set(alerts.length),
+      error: () => this.alertsSent.set(0),
     });
   }
 

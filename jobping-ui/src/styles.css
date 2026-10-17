@@ -14,13 +14,15 @@
 @tailwind utilities;
 
 /* ------------------------------------------------------------------ */
-/* Material overrides to fit the dark theme                            */
+/* Material overrides — theme-aware via our own CSS custom properties, */
+/* so toasts adapt automatically between light and dark mode instead   */
+/* of always rendering with dark-theme colors.                        */
 /* ------------------------------------------------------------------ */
 .mat-mdc-snack-bar-container.jp-snack-success {
-  --mdc-snackbar-container-color: #0c2a22;
-  --mdc-snackbar-supporting-text-color: #6ee7b7;
+  --mdc-snackbar-container-color: var(--success-soft);
+  --mdc-snackbar-supporting-text-color: var(--success);
 }
 .mat-mdc-snack-bar-container.jp-snack-error {
-  --mdc-snackbar-container-color: #2a0f12;
-  --mdc-snackbar-supporting-text-color: #fca5a5;
+  --mdc-snackbar-container-color: var(--error-soft);
+  --mdc-snackbar-supporting-text-color: var(--error);
 }

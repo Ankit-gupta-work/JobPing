@@ -33,7 +33,11 @@ export type IconName =
   | 'settings'
   | 'check-circle'
   | 'alert-circle'
-  | 'x';
+  | 'x'
+  | 'refresh-cw'
+  | 'zap'
+  | 'arrow-left'
+  | 'arrow-right';
 
 @Component({
   selector: 'app-icon',
@@ -144,6 +148,19 @@ export type IconName =
         }
         @case ('x') {
           <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+        }
+        @case ('refresh-cw') {
+          <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+        }
+        @case ('zap') {
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        }
+        @case ('arrow-left') {
+          <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+        }
+        @case ('arrow-right') {
+          <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
         }
       }
     </svg>

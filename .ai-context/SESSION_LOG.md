@@ -364,3 +364,385 @@ cleanup should happen first since it's cheap and the repo will only grow.
 3. `.gitignore` doesn't exist at all — worth creating one now (bin/obj/.vs/
    node_modules/.angular) as part of the P0 cleanup, or is that intentionally
    out of scope for this pass?
+
+## 2026-09-26 (later session)
+**Done:** Executed a large pasted "JobPing — Master UI Prompt" (9-part CSS/
+animation redesign + 5 "signature feature" components), with two
+deliberate deviations from the literal spec (both logged in DECISIONS.md):
+declined to reinstall `lucide-angular` (extended `IconComponent` instead —
+`refresh-cw`, `zap`, `arrow-left`, `arrow-right`), and built the "Live
+Terminal" widget from real data instead of the spec's fabricated log
+lines.
+
+Rewrote `_variables.css` (new token set: `--shadow-xs/sm/md/lg/accent`,
+`--ease-out`/`--ease-spring`, `--dur-fast/base/slow`, renamed sidebar vars
+to `--sidebar-w`/`--sidebar-w-icon`) and `_globals.css` (full rewrite,
+~700 lines) — kept old class-name selectors aliased alongside the new ones
+(`.filter-mobile-bar, .filter-bar-mobile` etc.) so nothing broke silently,
+then still went through and renamed every actual usage in
+`jobs-list.component.ts` to the new names for consistency
+(`.filter-bar-mobile`, `.sheet-overlay/-handle/-header/-footer`,
+`.pagination-simple`/`.pagination-full`/`.page-btn`, `.jobs-main`).
+
+Built five new components: `CommandPaletteComponent` (Cmd+K, real
+navigation + real theme toggle + real `POST /api/admin/fetch-jobs` for
+Admin-role users only, wired into `AppLayoutComponent`'s topnav search
+bar), `MatchRingComponent` (animated SVG ring, used in `JobCardComponent`
+in place of the company-initials logo whenever a match score is present —
+replaced the old flat `.match-bar` there since showing both was
+redundant), `WorkerTerminalComponent` (real last-sync/jobs-indexed/
+alerts-sent data, mounted on the dashboard), a live match-count banner on
+the Preferences skills/locations tabs (debounced real `GET /api/jobs/
+matches` refetch after each toggle), and `SwipeStackComponent` (mobile-
+only pointer-drag stack, real save on swipe-right, client-side-only skip
+on swipe-left — see DECISIONS.md for why no backend "dismiss" call
+exists). Added a shared `utils/count-up.ts` animation helper, wired into
+both `MatchRingComponent` (refactored to use it instead of its own
+duplicate RAF loop) and `StatCardComponent` (all four dashboard stat
+values now animate on change).
+
+While in the dashboard, fixed two stale/dishonest empty-state and stat-
+card strings left over from before Steps 6-7 existed: "Alerts sent" and
+"Match rate" stat cards said "Ships with Step 6/7" — both steps have been
+done for two sessions now. Replaced with real numbers (`alertsSent` from
+`GET /api/alerts`, `avgMatchScore` computed from real top-matches data).
+Same fix applied to the matching-tab empty state in both
+`dashboard.component.ts` and `jobs-list.component.ts` ("The matching
+engine ships in Step 6" → real guidance to set skills/locations). Also
+deleted a stale code comment on `JobService.getJobMatches()` claiming it
+"always returns []" — no longer true.
+
+Verified with `ng build` (dev) and `ng build --configuration production`
+— both clean, same bundle sizes as before this session (icon-system
+choice still holding: no lazy chunk grew unexpectedly). No live-browser
+QA (same tooling gap as every prior frontend session — still P0 in
+PENDING.md).
+
+**Next:** Live browser QA of the frontend remains the single biggest gap
+(P0, blocked on tooling — see PENDING.md). Otherwise Step 9 (deploy) and
+Step 10 (CI/CD) are next in the build order. Nothing from this session was
+committed to git yet — ask before committing/pushing.
+
+**Open questions:** none new.
+
+## 2026-09-26 (continued — theme/UI polish pass)
+**Done:** Responded to user feedback with screenshots showing the light
+theme looking "dull" and selected Preferences skill chips rendering with
+invisible text. Found and fixed the real root cause of the chip bug: the
+`.filter-chip` active-state highlight is a `::before` overlay, and the
+label text in every template using it is a raw interpolated text node
+(never wrapped in a `<span>`), so per CSS paint order a positioned
+pseudo-element paints ABOVE plain in-flow text regardless of z-index:auto.
+Fixed by giving `.filter-chip` its own stacking context
+(`position:relative; z-index:0`) and the `::before` an explicit
+`z-index:-1` — text now always paints above the fill, in every template
+that uses `.filter-chip` (Preferences, Jobs filters, Register wizard),
+with no template changes needed.
+
+Retuned light-theme tokens in `_variables.css`: split `--bg-page` from
+`--bg-surface` (were both near-identical whites — #ffffff/#fafafa — which
+is why cards had almost no visual separation from the page; now
+#f6f6f8/#ffffff so white cards pop against an off-white canvas), deepened
+border/text colors slightly, strengthened all four shadow tokens. Added
+the previously-missing `--error-border` token to both themes and a dark-
+theme `--error`/`--error-soft` override (was falling back to light's pink
+`--error-soft`, which would've looked wrong on dark surfaces).
+
+Found and fixed a second real color bug while investigating: the MatSnackBar
+`jp-snack-success`/`jp-snack-error` panel overrides in `styles.css` were
+hardcoded to fixed dark-theme colors (comment literally said "Material
+overrides to fit the dark theme") — in light mode this made every
+success/error toast (used throughout register, preferences, login) render
+as a near-black popup with light pastel text, clashing badly. Switched
+both to reference the same `--success`/`--success-soft`/`--error`/
+`--error-soft` tokens the rest of the app uses, so toasts now adapt
+correctly between themes.
+
+Rebuilt all three pages the user called out as not looking good:
+- `landing.component.ts` — fixed a dead `--nav-height` CSS var (typo for
+  `--nav-h`, was collapsing the header to auto-height); added a
+  how-it-works section (3 real steps, no fabricated stats), a real
+  data-sources strip (Remotive/Arbeitnow/WWR — the actual integrated
+  sources), a gradient CTA band, a footer, background glow decoration, and
+  staggered entrance + floating-card animations. Was previously just a
+  header + hero with a large dead white area below it.
+- `login.component.ts` — rebuilt as a split-panel layout: branded gradient
+  panel with real product facts + a preview card on the left (desktop
+  only), the actual sign-in form on the right, entrance animation on both.
+  Previously a single narrow card centered in an otherwise empty page.
+- `register.component.ts` — added the same background-glow decoration
+  language as landing/login, plus a per-step fade/slide-in animation
+  (re-triggers naturally each time `@if` swaps in a new step, no extra
+  JS needed) and a card-level entrance animation. Wizard logic/validation
+  untouched — only template/styles changed.
+
+Bumped the Angular `anyComponentStyle` budget in `angular.json` from
+4kB/8kB to 8kB/16kB — the landing page's new component-scoped styles
+(decoration + animations) tripped the old warning threshold; this isn't a
+real performance problem (the whole app's initial + lazy bundle total
+barely moved), just a stale budget from when pages had near-zero custom
+CSS.
+
+Verified with `ng build` and `ng build --configuration production` after
+every batch of changes — both clean, no errors, no budget warnings after
+the bump. Also grepped every `var(--...)` usage across `app/` and
+`styles/` against every token actually defined in `_variables.css` to
+catch any other stray typos like `--nav-height` — none found; that was
+the only one.
+
+**Next:** Still no live-browser visual confirmation of these changes (same
+long-standing P0 tooling gap). Nothing from this pass has been committed.
+Worth a real look (screenshot or user check) at all three auth-flow pages
+plus the Preferences chip fix before calling this fully done.
+
+**Open questions:** none new.
+
+## 2026-09-26 (continued — dashboard screenshot feedback)
+**Done:** User sent a dashboard screenshot in light mode, said the grey
+still feels dull and asked which build step the project is on. Two
+targeted changes: (1) retinted light-theme `--bg-page`/`--bg-elevated`/
+`--bg-hover` from a near-neutral cool grey to a visibly violet-tinted
+off-white, so the canvas ties to the brand accent instead of reading as
+plain corporate grey; (2) gave `.terminal-card` (the dashboard's
+fetch-jobs worker widget, the flattest-looking box in the screenshot) a
+dedicated always-dark surface (`--terminal-*` tokens in `_variables.css`)
+instead of tying it to `--bg-elevated` — a light-grey "terminal" doesn't
+read as a terminal; a real dark surface with bright mono text does, in
+both themes. `ng build` clean after.
+
+**Next:** Same as above — none of this is visually confirmed yet.
+
+## 2026-09-26 (continued — reverted always-dark terminal widget)
+**Done:** User flagged the always-dark terminal widget as inconsistent
+("why in white it is black?") rather than a welcome accent. Asked directly
+whether to keep it dark-always or match the light theme — user chose
+match. Reverted `.terminal-card` and children back to the standard theme
+tokens (`--bg-elevated`, `--border-default`, `--text-muted`, etc.) and
+deleted the now-unused `--terminal-*` token block from `_variables.css`.
+`ng build` clean.
+
+**Lesson for future sessions:** don't introduce a deliberately
+theme-inconsistent surface (always-dark on a light page) without
+confirming first — it reads as a bug/oversight to the user even when
+intentional and explained.
+
+## 2026-09-26 (continued — knowledge-transfer document)
+**Done:** User asked for a full knowledge-transfer Word document covering
+architecture and workflow, ahead of deploying (Step 9). Verified actual
+current codebase state first (ARCHITECTURE.md was stale — still said
+Steps 6-8 weren't started; confirmed via Glob that all controllers/
+services/workers/RabbitMqTopology.cs/docker-compose.yml for those steps
+exist) rather than transcribing the stale file. Generated a real .docx
+(not an HTML/markdown stand-in) using the `docx` npm package in a scratch
+Node project, since no pandoc/python-docx was available in this
+environment. Output: `docs/JobPing-Project-Documentation.docx` (~20KB,
+verified as a real Word 2007+ file). Covers: project overview, 4-layer
+Clean Architecture, full auth/job-pipeline/RabbitMQ/Redis workflow
+walkthroughs with the actual code paths, frontend architecture, Docker
+Compose topology, build-order status table, and a known-gaps section
+(no tests, no rate limiting, guard token-presence-vs-validity gap, no
+browser QA tooling, etc.).
+
+**Next:** User said Step 9 (deploy, make it live) is next. Needs from the
+user: a target host/VPS provider and a domain name before that can start.
+`docs/` is a new untracked folder — nothing committed.
+
+## 2026-09-29 — Step 9 deploy prep (Oracle Cloud)
+**Done:** User asked where to host for free; walked through why Vercel
+(static/serverless only, no .NET/Postgres/Redis/RabbitMQ support) and
+Railway (no longer has a real free tier, trial credit only) don't fit,
+recommended Oracle Cloud's Always Free ARM tier (genuinely free forever,
+enough compute for the whole existing docker-compose.yml stack
+unmodified). User confirmed — prepped the actual deploy:
+
+- Restructured `nginx/nginx.conf` to a static shell that includes
+  `/etc/nginx/conf.d/*.conf`, generated at container startup from
+  `nginx/templates/*.template` via the official nginx:alpine image's
+  built-in envsubst entrypoint (no custom scripting). `${DOMAIN}` comes
+  from a new `DOMAIN` env var (docker-compose.yml → .env), defaults to
+  `localhost` so local `docker compose up` is unaffected.
+- `nginx/templates/app.conf.template` — the checked-in ACTIVE template is
+  HTTP-only (matches today's behavior) but now includes the
+  `/.well-known/acme-challenge/` location certbot needs. The HTTPS
+  version (redirect + 443 server block + ssl_certificate paths) is
+  documented in `docs/DEPLOYMENT.md` as a manual swap-in after the first
+  certificate is issued — deliberately not both active at once, since an
+  HTTPS server block referencing a cert that doesn't exist yet fails
+  nginx's startup entirely.
+- `docker-compose.yml` — added a `certbot` service (shares `certbot_www`
+  and `certbot_conf` named volumes with `nginx`, the latter read-only on
+  nginx's side), added port 443 to nginx, added the `DOMAIN` env var, and
+  added explicit warning comments on the db/rabbitmq host port mappings
+  (5433, 15672) telling a future deploy NOT to open those in the cloud
+  firewall — the actual security boundary is the Oracle VCN Security
+  List, not the compose file itself.
+- `nginx/Dockerfile` — now COPYs `nginx/templates/` into the image;
+  EXPOSE 80 443.
+- `.env.example` — added `DOMAIN=localhost`.
+- Wrote `docs/DEPLOYMENT.md` — full step-by-step runbook: Oracle VM
+  creation (shape, Always Free ARM sizing), the two-layer firewall
+  (Oracle Security List + Ubuntu's own iptables — both default-closed,
+  both need explicit rules), Docker install, .env setup, DNS, the
+  HTTP-first-then-cert-then-HTTPS sequencing, running the EF Core
+  migration via an SSH tunnel (Postgres is never exposed to the public
+  internet, even temporarily), certbot webroot issuance + the HTTPS
+  template swap, cron-based renewal, and day-2 ops (redeploy, logs,
+  pg_dump backup). Explicitly scoped out Step 10 (CI/CD) and
+  monitoring/tests as deliberately not covered yet.
+
+Validated `docker compose config` against the new file with a throwaway
+`.env` — resolves cleanly, DOMAIN defaults correctly, volumes wire up as
+intended. Could not build/run the actual images or test real cert
+issuance in this session (no Oracle VM exists yet — that's on the user).
+
+**Next:** User needs to actually create the Oracle VM and work through
+docs/DEPLOYMENT.md. Nothing here has been committed to git yet — this
+touched docker-compose.yml, nginx/Dockerfile, nginx/nginx.conf (rewritten
+from scratch), plus new files nginx/templates/app.conf.template,
+docs/DEPLOYMENT.md, and an addition to .env.example.
+
+**Open questions:** none new — waiting on the user to actually provision
+infrastructure before this can be tested for real.
+
+## 2026-09-29 — Added Adzuna + JSearch as job sources 4 and 5
+**Done:** User pasted a spec for adding two India-focused job sources
+(Adzuna, JSearch/RapidAPI) alongside the existing Remotive/Arbeitnow/WWR.
+The pasted spec assumed the fetch pipeline lives directly in
+`FetchJobsWorker.cs` with per-source inline dedup/insert loops — that's
+not how this codebase actually works (established back in an earlier
+session, before this doc was updated to reflect it): `FetchJobsWorker` is
+just a `PeriodicTimer` wrapper: the real orchestration (distributed lock,
+per-source fetch, the shared `SaveNewJobsAsync` dedup+insert+skill-extract
++publish helper, background_tasks status, cache invalidation) all lives in
+`JobFetchService.FetchAndStoreJobsAsync`, specifically so `AdminController`
+can trigger the exact same logic on demand. Wiring the new sources into
+`FetchJobsWorker` as the spec described would have made them silently
+invisible to the "Run job fetch now" admin/command-palette trigger, and
+would have duplicated the dedup/skill-extraction logic that already exists
+as a shared helper. Read the real files first, then implemented against
+them instead:
+
+- New `AdzunaClient.cs` / `JSearchClient.cs` in `ExternalClients/` —
+  response models rewritten from the spec's lowercase-property versions
+  (which relied on System.Text.Json's default case sensitivity accidentally
+  not mattering, or would've silently deserialized to nulls) to PascalCase
+  properties with explicit `[JsonPropertyName]`, matching
+  `RemotiveClient.cs`'s established convention exactly.
+- `JobMappingService` — added `MapAdzunaJob`/`MapJSearchJob`, using the
+  same `TruncReq`/`Trunc`/`EmptyTo` column-length-safety helpers every
+  other mapper already uses (the spec's versions had no truncation at all
+  — a real risk of a DB write failure on an oversized title/description
+  from an external API with no length guarantees).
+- `JobFetchService` — added `AdzunaClient`/`JSearchClient` as constructor
+  deps, and two new blocks in `FetchAndStoreJobsAsync` calling the
+  existing shared `SaveNewJobsAsync` helper (same dedup/insert/skill-
+  extract/publish path as every other source, instead of new bespoke
+  per-source loops). No per-source try/catch needed here either — each
+  client's own `FetchXAsync` already swallows its own failures and
+  returns an empty list, matching how Remotive/Arbeitnow/WWR already work.
+- **JSearch quota fix**: the pasted spec's own math showed calling
+  JSearch every 2h (5 queries/run x 12 runs/day) works out to ~1,800
+  calls/month against a 500/month free-tier cap — a 3.6x overshoot the
+  spec flagged but didn't actually fix in code, just noted as "something
+  to consider." Implemented a real fix: a `gate:jsearch-daily` key via
+  the existing `ICacheService` (get/set, 24h TTL) so JSearch only actually
+  runs once per day regardless of how often the worker ticks — brings it
+  to ~150 calls/month, comfortable headroom under the cap.
+- `Program.cs` — registered both as typed `HttpClient`s with
+  `BaseAddress` set once (matching Remotive/Arbeitnow/WWR's pattern),
+  rather than the spec's per-call absolute-URL-from-config approach.
+- `appsettings.json`, `.env.example`, `docker-compose.yml` (api + worker
+  services) — added `Adzuna:AppId/AppKey` and `JSearch:ApiKey/Host`
+  config, all empty/blank by default; each client logs a warning and
+  returns an empty list if its keys aren't set, rather than throwing.
+- Frontend (`jobs-list.component.ts`) — added `'Adzuna'`/`'JSearch'` to
+  the `sources` array and `SOURCE_ICONS` map (`map-pin`/`search`, both
+  already existing `IconComponent` icons). No template changes needed at
+  all — both the mobile filter-chip row and the desktop filter sidebar
+  already loop generically over the `sources` array; the spec's
+  suggestion to hand-write two new `<lucide-icon>` buttons was both
+  unnecessary (nothing to add, the loop already covers it) and wrong
+  (this project deliberately doesn't use lucide-angular — see earlier
+  DECISIONS.md entries).
+
+Verified: `dotnet build` on `JobPing.Infrastructure` directly (clean, 0
+errors) and on `JobPing.API` with a scratch `-p:BaseOutputPath` to route
+around a file lock from the user's own running Visual Studio/API process
+(also clean, 0 errors — didn't touch the locked process, per standing
+policy about not touching processes that might be the user's own active
+session). `ng build` clean. `docker compose config` still resolves
+cleanly with the two new env vars wired to both `api` and `worker`.
+
+**Next:** User needs real Adzuna + RapidAPI/JSearch keys (both signups
+are free) to actually see jobs from these two sources — without them,
+both clients log a warning and no-op, which is safe but means nothing
+will show up under those two source filters yet. Once keys exist, trigger
+`POST /api/admin/fetch-jobs` (or the command palette's "Run job fetch
+now" for an Admin user) and check `SELECT source, COUNT(*) FROM jobs
+GROUP BY source` to confirm all 5 sources are populating. Then back to
+Step 9 (Oracle deploy) — user had asked to do this addition "before that."
+Nothing from this session committed to git yet.
+
+## 2026-10-03 — Got the full stack running, found and fixed 3 real bugs in Adzuna/JSearch
+**Done:** Walked the user through getting real Adzuna + JSearch/RapidAPI API
+keys (Adzuna signup, RapidAPI signup + JSearch subscription), wired both
+into `.env`. Then ran into — and fixed — a chain of real environment and
+integration issues, each only found by actually running the stack:
+
+**Environment issues (not app bugs, but blocked everything):**
+- Docker Desktop's engine wasn't running at all initially (daemon
+  unreachable) — needed a full quit/relaunch, plus `wsl --shutdown` once
+  to unstick it.
+- That `wsl --shutdown` left Docker's internal DNS broken for one build
+  attempt (`lookup mcr.microsoft.com: no such host` — not specific to
+  Microsoft's registry, Docker Hub failed too) — resolved after a second
+  full Docker Desktop restart.
+- `jobping-ui/package-lock.json` was out of sync with `package.json`
+  (missing `@emnapi/core`/`@emnapi/runtime` — a nested peer-dependency-of-
+  an-optional-package that both `npm install` and
+  `npm install --package-lock-only` failed to resolve correctly while
+  `node_modules` already existed). Only a full clean reinstall (delete
+  both `node_modules` and the lock file, fresh `npm install`) actually
+  fixed it — confirms this is a recurring class of issue for this repo,
+  third time now across sessions. Needed the user to stop their running
+  `ng serve` first (it was holding files open).
+
+**Three real bugs in the new Adzuna/JSearch code, found only by hitting
+the live APIs for the first time (not catchable by code review or a
+mocked test):**
+1. **Adzuna charset bug** — Adzuna's API sends `Content-Type: application/
+   json; charset=utf8` (missing the hyphen, non-standard). .NET's
+   `GetFromJsonAsync`/`ReadFromJsonAsync` validate the declared charset
+   name strictly and throw on anything they don't recognize — "utf8"
+   isn't a registered .NET encoding name. Fixed in both `AdzunaClient`
+   and (preemptively, same risk) `JSearchClient` by deserializing from
+   the raw response stream via `JsonSerializer.DeserializeAsync` instead
+   — JSON is UTF-8 per RFC 8259 regardless of what a server's header
+   claims, so there's no reason to trust the declared charset at all.
+2. **Wrong JSearch endpoint** — the pasted spec (and seemingly RapidAPI's
+   own older cached docs) pointed at `/search`; the live API 404s on that
+   and the real current endpoint is `/search-v2`. Confirmed directly
+   against the user's own RapidAPI console before fixing.
+3. **Wrong JSearch response shape** — `search-v2`'s `data` field is an
+   object (`{ jobs: [...], cursor: "..." }`), not the bare array the
+   spec's `search` docs described. Added a `JSearchData` wrapper type.
+   Also found `job_employment_type` comes back as a human-readable string
+   ("Contractor", "Full-time") rather than the uppercase enum
+   ("CONTRACTOR") the original mapping switch expected — fixed to match
+   case-insensitively with a passthrough fallback instead of dropping
+   unrecognized values to null.
+
+Verified end-to-end against the real running stack (not just `dotnet
+build`): queried `SELECT source, COUNT(*) FROM jobs GROUP BY source`
+directly against the live Postgres container and confirmed real rows
+from all 5 sources, most with fresh `fetched_at` timestamps from this
+session's test runs (Adzuna: 398, JSearch: 21 — both newly populated;
+Arbeitnow/WWR/Remotive: 1589/183/19 from earlier sessions, still healthy).
+
+**Next:** Full Docker Compose stack is now running locally at
+`http://localhost` with the Adzuna/JSearch integration genuinely working
+end-to-end. Nothing from this session has been committed yet — this
+touched `AdzunaClient.cs`, `JSearchClient.cs`, `JobMappingService.cs`,
+`jobping-ui/package-lock.json` (regenerated). Back to Step 9 (Oracle
+deploy) once the user is ready, per their own stated sequencing
+("before that" → source integration first, deploy after).
