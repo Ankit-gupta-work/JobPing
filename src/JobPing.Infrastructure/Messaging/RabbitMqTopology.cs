@@ -28,6 +28,18 @@ public static class RabbitMqTopology
 
     public static ConnectionFactory BuildFactory(IConfiguration config)
     {
+        // Production: use a single AMQP URL (CloudAMQP on Railway)
+        var url = config["RabbitMQ__Url"] ?? config["RabbitMQ:Url"];
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            return new ConnectionFactory
+            {
+                Uri = new Uri(url),
+                AutomaticRecoveryEnabled = true,
+            };
+        }
+
+        // Local development: use separate host/user/pass from appsettings.json
         return new ConnectionFactory
         {
             HostName = config["RabbitMQ:Host"] ?? "localhost",
@@ -35,6 +47,7 @@ public static class RabbitMqTopology
             UserName = config["RabbitMQ:Username"] ?? "guest",
             Password = config["RabbitMQ:Password"] ?? "guest",
             VirtualHost = config["RabbitMQ:VirtualHost"] ?? "/",
+            AutomaticRecoveryEnabled = true,
         };
     }
 
