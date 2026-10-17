@@ -22,12 +22,20 @@ var builder = WebApplication.CreateBuilder(args);
 // Outside Development, RUN_MODE=worker means background-only; anything
 // else (including unset, which is what the api container uses) means
 // web-only. Nothing about this changes local dev behavior.
+//
+// RUN_MODE=all is a third option for single-service hosts (e.g. Railway,
+// where running a second always-on service just for the background
+// workers costs extra and the docker-compose api/worker split doesn't
+// apply) — runs both the web pipeline and the background services in one
+// process, same as local dev, without touching the existing api/worker
+// split's default (unset) behavior.
 // ---------------------------------------------------------------------
 var isDevelopment = builder.Environment.IsDevelopment();
-var isWorkerOnly = !isDevelopment &&
-    string.Equals(builder.Configuration["RUN_MODE"], "worker", StringComparison.OrdinalIgnoreCase);
+var runMode = builder.Configuration["RUN_MODE"];
+var isWorkerOnly = !isDevelopment && string.Equals(runMode, "worker", StringComparison.OrdinalIgnoreCase);
+var isAllMode = !isDevelopment && string.Equals(runMode, "all", StringComparison.OrdinalIgnoreCase);
 var runWebPipeline = isDevelopment || !isWorkerOnly;
-var runBackgroundServices = isDevelopment || isWorkerOnly;
+var runBackgroundServices = isDevelopment || isWorkerOnly || isAllMode;
 
 // ---------------------------------------------------------------------
 // Controllers
