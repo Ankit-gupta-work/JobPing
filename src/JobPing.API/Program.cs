@@ -147,8 +147,16 @@ if (runWebPipeline)
 
     builder.Services.AddCors(options =>
     {
+        // "Cors:AllowedOrigins" (comma-separated) lets a deployed frontend on a
+        // different origin (e.g. Vercel) talk to this API — hardcoding
+        // localhost:4200 only worked while nginx served both same-origin.
+        // Falls back to localhost:4200 so local `dotnet run`/`ng serve` is
+        // unaffected if the setting is never configured.
+        var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:4200")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
         options.AddPolicy(AngularCors, policy =>
-            policy.WithOrigins("http://localhost:4200")
+            policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials());
